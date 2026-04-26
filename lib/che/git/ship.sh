@@ -98,9 +98,37 @@ fi
 
 # --- default: existing behavior ---
 printf '\n── repo: %s ──\n' "$(basename "$repo_root")"
+
+# Check if HEAD is detached and recover automatically
+if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
+  detached_commit="$(git -C "$repo_root" rev-parse HEAD)"
+
+  # Prefer the active che-flow branch if a marker exists.
+  if [ -f "$marker" ]; then
+    flow_branch="$(awk -F= '$1=="branch"{print $2}' "$marker")"
+  else
+    flow_branch=""
+  fi
+
+  recover_branch=""
+  if [ -n "$flow_branch" ] && git -C "$repo_root" show-ref --verify --quiet "refs/heads/$flow_branch"; then
+    recover_branch="$flow_branch"
+  else
+    recover_branch="$(git -C "$repo_root" branch --contains "$detached_commit" --format='%(refname:short)' | head -n 1 | tr -d '\r')"
+  fi
+
+  if [ -n "$recover_branch" ]; then
+    git -C "$repo_root" checkout "$recover_branch" >/dev/null 2>&1 \
+      && echo "che ship: recovered from detached HEAD, switched to '$recover_branch'" \
+      || echo "che ship: detached HEAD at $detached_commit (could not recover to '$recover_branch')"
+  else
+    echo "che ship: detached HEAD at $detached_commit (no branch contains this commit)"
+  fi
+fi
+
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   exec bash "$LIB_DIR/git/commit.sh" --push --yes
 else
-  echo "che ship: detached HEAD, committing without push"
+  echo "che ship: still in detached HEAD, committing without push"
   exec bash "$LIB_DIR/git/commit.sh" --yes
 fi
