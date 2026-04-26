@@ -40,8 +40,9 @@ lib/che/
     client.sh
   workflow.sh                sub-dispatcher: list / show / run
   workflow/
-    check.sh                 verifies yq (mikefarah Go variant)
+    check.sh                 verifies python3 + PyYAML
     loader.sh                shared parsing + ${input} substitution
+    yaml_get.py              tiny YAML query helper (replaces yq)
     list.sh                  che workflow list
     show.sh                  che workflow show <name>
     run.sh                   che workflow run <name>  /  che run <name>

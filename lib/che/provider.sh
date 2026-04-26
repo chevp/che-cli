@@ -28,6 +28,18 @@ provider_ping() {
   "${p}_ping"
 }
 
+# Best-effort: ensure the active provider's server is running locally.
+# For ollama, spawns `ollama serve` in the background if not already up.
+# For remote providers (openai, anthropic), there is nothing to start.
+# Returns 0 if the provider is reachable after the attempt, 1 otherwise.
+provider_ensure_running() {
+  local p; p="$(provider_active)"
+  case "$p" in
+    ollama) ollama_serve_start ;;
+    *)      "${p}_ping" ;;
+  esac
+}
+
 provider_has_model() {
   local p; p="$(provider_active)"
   "${p}_has_model" "$@"

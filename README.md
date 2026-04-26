@@ -62,6 +62,19 @@ $env:PREFIX = "C:\custom\path"; .\install.ps1
 
 After installing, run **`che doctor`** to verify everything works.
 
+### Windows (Inno Setup installer)
+
+If you'd rather not run the script-based installer, build a proper Windows
+installer that handles `PATH`, prerequisite checks, and uninstall cleanly:
+
+```powershell
+cd installer
+.\build.ps1
+```
+
+Output lands in [installer/Output/](installer/Output/). Double-click the
+`.exe` to install. Build prerequisites: [Inno Setup 6](https://jrsoftware.org/isdl.php).
+
 **Requirements (all platforms):** `bash`, `git`, `curl`, `python3` (or `python`).
 
 ---
@@ -140,7 +153,7 @@ che run <name> --tag=v1.2.3 --dry-run   # plan only
 A copy-paste template lives at [`.che/workflows/example.yml`](.che/workflows/example.yml).
 Full guide: [chevp.github.io/che-cli/workflow.html](https://chevp.github.io/che-cli/workflow.html).
 
-Requires [`yq`](https://github.com/mikefarah/yq) (the mikefarah Go binary).
+Requires `python3` plus [PyYAML](https://pypi.org/project/PyYAML/) (`pip install pyyaml`).
 Run `che doctor workflow` to check.
 
 ### `che doctor` — health check

@@ -21,9 +21,11 @@
 #   - `${input}` substitution happens once, before exec, on each args entry.
 #   - Scripts run with the workflow root (the folder containing .che/) as CWD.
 #
-# Parsing uses mikefarah/yq (the Go binary). `che doctor workflow` checks for it.
+# Parsing uses Python + PyYAML (see workflow/yaml_get.py). `che doctor workflow`
+# checks for both. We don't depend on the `yq` binary anymore.
 
 WF_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WF_YAML_GET="$WF_LIB_DIR/workflow/yaml_get.py"
 
 if [ -t 1 ]; then
   WF_C_GREEN=$'\033[32m'; WF_C_RED=$'\033[31m'; WF_C_DIM=$'\033[2m'
@@ -71,23 +73,43 @@ wf_resolve_file() {
   wf_die "workflow not found: $name (looked in $WF_DIR)"
 }
 
-# Verify yq is installed and is the Go variant (mikefarah). The python-yq has
-# a different expression language and would silently produce wrong results.
+# Resolve a python interpreter that actually runs.
+#
+# On Windows, `python3` on PATH is often a Microsoft Store App Execution Alias
+# stub that resolves via `command -v` but does not actually execute — it just
+# prompts the user to install Python from the Store. So we probe each candidate
+# by running it, not just by checking PATH.
+_wf_python() {
+  local cand
+  for cand in python3 python; do
+    if command -v "$cand" >/dev/null 2>&1 \
+       && "$cand" -c '' >/dev/null 2>&1; then
+      echo "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Verify Python + PyYAML are available. Both are needed to parse workflow files.
 wf_require_yq() {
-  command -v yq >/dev/null 2>&1 \
-    || wf_die "yq is required (https://github.com/mikefarah/yq) — run 'che doctor workflow'"
-  if ! yq --version 2>&1 | grep -qi 'mikefarah\|version v\?[34]'; then
-    wf_die "yq must be the mikefarah/yq Go binary (run 'che doctor workflow')"
+  local py
+  py="$(_wf_python)" \
+    || wf_die "python3 (or python) is required — run 'che doctor workflow'"
+  if ! "$py" -c 'import yaml' >/dev/null 2>&1; then
+    wf_die "PyYAML is required (pip install pyyaml) — run 'che doctor workflow'"
   fi
 }
 
-# Read a scalar via yq. Returns the empty string when the path is null/missing.
+# Read a scalar from a workflow YAML. Returns the empty string for null/missing.
+# Supported expressions:
+#   .path.with.dots           scalar (string/int/bool)
+#   .path[0].with[1]          scalar with array indexes
+#   .path | length            length of an array (0 if missing/non-array)
 wf_yq() {
   local expr="$1" file="$2"
-  local out
-  out="$(yq -r "$expr" "$file" 2>/dev/null || true)"
-  [ "$out" = "null" ] && out=""
-  printf '%s' "$out"
+  local py; py="$(_wf_python)" || return 1
+  "$py" "$WF_YAML_GET" "$file" "$expr" 2>/dev/null || true
 }
 
 # Validate the top-level shape. Exits with a clear message on the first error.
@@ -123,9 +145,18 @@ wf_input_names() {
 # Print "1" if the named input is required, "0" otherwise.
 wf_input_required() {
   local file="$1" name="$2"
-  local req
-  req="$(wf_yq "(.inputs[] | select(.name == \"$name\") | .required) // false" "$file")"
-  [ "$req" = "true" ] && printf '1' || printf '0'
+  local n; n="$(wf_yq '.inputs | length' "$file")"
+  [ "${n:-0}" -gt 0 ] || { printf '0'; return; }
+  local i in_name in_req
+  for ((i = 0; i < n; i++)); do
+    in_name="$(wf_yq ".inputs[$i].name" "$file")"
+    if [ "$in_name" = "$name" ]; then
+      in_req="$(wf_yq ".inputs[$i].required" "$file")"
+      [ "$in_req" = "true" ] && printf '1' || printf '0'
+      return
+    fi
+  done
+  printf '0'
 }
 
 # Inputs are stored as parallel arrays (WF_INPUT_KEYS / WF_INPUT_VALS) because

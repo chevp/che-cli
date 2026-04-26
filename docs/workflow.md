@@ -186,15 +186,16 @@ to predict what runs without opening a single shell script.
 che doctor workflow
 ```
 
-Verifies that [`yq`](https://github.com/mikefarah/yq) (the mikefarah Go
-binary) is on `$PATH`. The Python `yq` package has a different expression
-language and is not supported.
+Verifies that `python3` (or `python`) and [PyYAML](https://pypi.org/project/PyYAML/)
+are available. Workflow files are parsed by a tiny in-tree helper
+([lib/che/workflow/yaml_get.py](https://github.com/chevp/che-cli/blob/main/lib/che/workflow/yaml_get.py))
+that depends only on PyYAML — no external `yq` binary required.
 
-| Platform   | Install                                            |
-|------------|----------------------------------------------------|
-| macOS      | `brew install yq`                                  |
-| Windows    | `winget install --id MikeFarah.yq`                 |
-| Linux/WSL  | see [yq install docs](https://github.com/mikefarah/yq#install) |
+| Platform   | Install                                                          |
+|------------|------------------------------------------------------------------|
+| macOS      | `brew install python && pip3 install pyyaml`                     |
+| Windows    | `winget install --id Python.Python.3.12 && pip install pyyaml`   |
+| Linux/WSL  | `apt install python3 python3-yaml` (or `pip3 install pyyaml`)    |
 
 ---
 

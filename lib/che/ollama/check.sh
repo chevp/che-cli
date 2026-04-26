@@ -36,9 +36,14 @@ ollama_check() {
   if ollama_ping; then
     ok "server responding at $CHE_OLLAMA_HOST"
   else
-    fail "no response at $CHE_OLLAMA_HOST"
-    info "start it with: ollama serve"
-    return 1
+    info "no response at $CHE_OLLAMA_HOST — starting 'ollama serve' in the background…"
+    if ollama_serve_start 10; then
+      ok "server started at $CHE_OLLAMA_HOST"
+    else
+      fail "could not reach $CHE_OLLAMA_HOST after starting 'ollama serve'"
+      info "start it manually in another terminal: ollama serve"
+      return 1
+    fi
   fi
 
   if ollama_has_model "$CHE_OLLAMA_MODEL"; then

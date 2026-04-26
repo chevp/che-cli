@@ -3,3 +3,4 @@
 http-client.private.env.json
 .idea/httpRequests/
 .DS_Store
+installer/Output/

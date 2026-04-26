@@ -86,7 +86,7 @@ che doctor               # all checks
 che doctor provider      # only the active provider
 che doctor ollama        # ollama install + reachability + model
 che doctor docker        # docker install + daemon running
-che doctor workflow      # yq for che workflow / che run
+che doctor workflow      # python + PyYAML for che workflow / che run
 ```
 
 ---

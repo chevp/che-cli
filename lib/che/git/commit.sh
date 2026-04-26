@@ -100,46 +100,59 @@ Diff:
 $diff
 EOF
 
+fallback_msg() {
+  local files n
+  files="$(git diff --cached --name-only)"
+  n="$(printf '%s\n' "$files" | awk 'NF{n++} END{print n+0}')"
+  if [ "$n" = "1" ]; then
+    printf 'update %s\n\n' "$(printf '%s\n' "$files" | awk 'NF{print; exit}')"
+  else
+    printf 'update %s files\n\n' "$n"
+  fi
+  printf '%s\n' "$files" | awk 'NF { printf "- %s\n", $0 }'
+}
+
+msg=""
+provider_ensure_running >/dev/null 2>&1 || true
 if ! provider_ping; then
-  echo "che commit: provider '$(provider_active)' not reachable" >&2
+  echo "che commit: provider '$(provider_active)' not reachable — using default message" >&2
   echo "             run 'che doctor provider' for diagnostics" >&2
-  exit 1
+else
+  out_tmp="$(mktemp)"
+  err_tmp="$(mktemp)"
+  trap 'rm -f "$out_tmp" "$err_tmp"' EXIT
+
+  provider_generate "$prompt" >"$out_tmp" 2>"$err_tmp" &
+  gen_pid=$!
+
+  if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model))"; then
+    raw="$(cat "$out_tmp")"
+    msg="$(printf '%s\n' "$raw" | awk '
+      NF && !seen { seen=1 }
+      seen { buf[++n]=$0 }
+      END {
+        while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--
+        for (i=1; i<=n; i++) print buf[i]
+      }
+    ' | awk 'NR==1 {
+      sub(/^[[:space:]]+/, "")
+      sub(/^["'"'"']/, ""); sub(/["'"'"']$/, "")
+    } { print }')"
+    if [ -z "$(printf '%s\n' "$msg" | head -n 1)" ]; then
+      echo "che commit: LLM returned empty message — using default message" >&2
+      msg=""
+    fi
+  else
+    [ -s "$err_tmp" ] && cat "$err_tmp" >&2
+    echo "che commit: provider '$(provider_active)' request failed — using default message" >&2
+  fi
 fi
 
-out_tmp="$(mktemp)"
-err_tmp="$(mktemp)"
-trap 'rm -f "$out_tmp" "$err_tmp"' EXIT
-
-provider_generate "$prompt" >"$out_tmp" 2>"$err_tmp" &
-gen_pid=$!
-
-if ! ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model))"; then
-  [ -s "$err_tmp" ] && cat "$err_tmp" >&2
-  echo "che commit: provider '$(provider_active)' request failed" >&2
-  exit 1
+if [ -z "$msg" ]; then
+  msg="$(fallback_msg)"
 fi
-
-raw="$(cat "$out_tmp")"
-
-# Trim leading/trailing blank lines and surrounding quotes on the title line.
-msg="$(printf '%s\n' "$raw" | awk '
-  NF && !seen { seen=1 }
-  seen { buf[++n]=$0 }
-  END {
-    while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--
-    for (i=1; i<=n; i++) print buf[i]
-  }
-' | awk 'NR==1 {
-  sub(/^[[:space:]]+/, "")
-  sub(/^["'"'"']/, ""); sub(/["'"'"']$/, "")
-} { print }')"
 
 title="$(printf '%s\n' "$msg" | head -n 1)"
-
-if [ -z "$title" ]; then
-  echo "che commit: LLM returned empty message" >&2
-  exit 1
-fi
 
 printf '\n→ %s\n' "$title"
 body="$(printf '%s\n' "$msg" | awk 'NR>1 && (NF || printed) { printed=1; print }')"

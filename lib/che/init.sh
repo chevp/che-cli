@@ -62,12 +62,7 @@ if ollama_ping; then
   ok "server reachable at $CHE_OLLAMA_HOST"
 else
   info "starting 'ollama serve' in the background…"
-  nohup ollama serve >/dev/null 2>&1 &
-  for _ in 1 2 3 4 5 6 7 8 9 10; do
-    sleep 1
-    if ollama_ping; then break; fi
-  done
-  if ollama_ping; then
+  if ollama_serve_start 10; then
     ok "server started at $CHE_OLLAMA_HOST"
   else
     fail "could not reach $CHE_OLLAMA_HOST after starting 'ollama serve'"

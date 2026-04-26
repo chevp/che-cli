@@ -40,7 +40,8 @@ if [ "${inputs_len:-0}" -gt 0 ]; then
   printf '\n%sinputs%s\n' "$WF_C_BOLD" "$WF_C_RESET"
   for ((i = 0; i < inputs_len; i++)); do
     iname="$(wf_yq ".inputs[$i].name" "$file")"
-    ireq="$(wf_yq "(.inputs[$i].required) // false" "$file")"
+    ireq="$(wf_yq ".inputs[$i].required" "$file")"
+    [ -z "$ireq" ] && ireq="false"
     idesc="$(wf_yq ".inputs[$i].description" "$file")"
     tag="optional"
     [ "$ireq" = "true" ] && tag="required"

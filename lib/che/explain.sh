@@ -142,6 +142,7 @@ ${question:+User question: $question
 $context
 EOF
 
+provider_ensure_running >/dev/null 2>&1 || true
 if ! provider_ping; then
   echo "che explain: provider '$(provider_active)' not reachable" >&2
   echo "             run 'che doctor provider' for diagnostics" >&2

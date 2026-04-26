@@ -12,6 +12,26 @@ ollama_ping() {
   curl -sS --fail --connect-timeout 2 "$CHE_OLLAMA_HOST/api/tags" >/dev/null 2>&1
 }
 
+# ollama_serve_start [timeout_seconds]
+# If the server is already responding, returns 0 immediately.
+# Otherwise spawns `ollama serve` in the background and waits up to
+# timeout_seconds (default 10) for the server to respond.
+# Returns 0 on success, 1 if ollama is not installed or never came up.
+# Silent — callers print their own UI.
+ollama_serve_start() {
+  local timeout="${1:-10}"
+  if ollama_ping; then return 0; fi
+  command -v ollama >/dev/null 2>&1 || return 1
+  nohup ollama serve >/dev/null 2>&1 &
+  local i=0
+  while [ "$i" -lt "$timeout" ]; do
+    sleep 1
+    if ollama_ping; then return 0; fi
+    i=$((i + 1))
+  done
+  return 1
+}
+
 ollama_has_model() {
   local model="${1:-$CHE_OLLAMA_MODEL}"
   curl -sS --fail --connect-timeout 2 "$CHE_OLLAMA_HOST/api/tags" 2>/dev/null \
