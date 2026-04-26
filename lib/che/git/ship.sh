@@ -39,6 +39,13 @@ if [ -f "$repo_root/.gitmodules" ]; then
   done < <(git -C "$repo_root" config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
 fi
 
+# --- pull main repo (fast-forward only) before commit/push ---
+if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
+   && git -C "$repo_root" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+  git -C "$repo_root" pull --ff-only \
+    || { echo "che ship: pull --ff-only failed in $(basename "$repo_root") — resolve and retry" >&2; exit 1; }
+fi
+
 # --- flow mode: commit, push -u, open/update draft PR ---
 if [ -f "$marker" ]; then
   branch="$(awk -F= '$1=="branch"{print $2}' "$marker")"
