@@ -9,6 +9,10 @@ A small collection of CLI utilities, glued together by one dispatcher binary
 script in `lib/che/<topic>/`, add a case arm in `bin/che`, done.
 
 > **Source:** [github.com/chevp/che-cli](https://github.com/chevp/che-cli)
+>
+> **Pages:** [installation](./installation.md) ·
+> [architecture](./architecture.md) ·
+> [troubleshooting](./troubleshooting.md)
 
 ---
 
