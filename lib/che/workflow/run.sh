@@ -27,7 +27,6 @@ Options:
 EOF
 }
 
-declare -A WF_INPUTS=()
 dry=false
 name=""
 
@@ -40,13 +39,13 @@ while [ "$#" -gt 0 ]; do
       k="${kv%%=*}"
       v="${kv#*=}"
       [ -n "$k" ] || wf_die "empty --key in '$1'"
-      WF_INPUTS["$k"]="$v"
+      wf_input_set "$k" "$v"
       ;;
     --*)
       k="${1#--}"
       shift
       [ "$#" -gt 0 ] || wf_die "missing value for --$k"
-      WF_INPUTS["$k"]="$1"
+      wf_input_set "$k" "$1"
       ;;
     -*) wf_die "unknown option '$1'" ;;
     *)
@@ -68,7 +67,7 @@ missing=()
 while IFS= read -r in_name; do
   [ -n "$in_name" ] || continue
   if [ "$(wf_input_required "$file" "$in_name")" = "1" ] \
-     && [ -z "${WF_INPUTS[$in_name]+x}" ]; then
+     && ! wf_input_has "$in_name"; then
     missing+=("$in_name")
   fi
 done < <(wf_input_names "$file")

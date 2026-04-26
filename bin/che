@@ -17,8 +17,12 @@ Commands:
                       in flow mode: push -u + open/update draft PR
   flow <branch>       start a flow branch (pull base, checkout new, mark repo)
   done                finish active flow: gh pr merge --squash --auto, back to base
+  run <name>          execute a workflow from .che/workflow/<name>.yml
+                      (alias for: che workflow run <name>)
+  workflow <sub>      list / show / run workflows from .che/workflow/
   status              git status + che-cli config (provider, model, env)
-  doctor [target]     verify deps and providers (git, gh, docker, ollama, openai, anthropic)
+  doctor [target]     verify deps and providers (git, gh, docker, ollama, openai,
+                      anthropic, workflow)
   help                show this message
 
 Run 'che <command> --help' for command-specific options.
@@ -29,12 +33,14 @@ cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
 
 case "$cmd" in
-  commit)         exec bash "$CHE_LIB_DIR/git/commit.sh" "$@" ;;
-  ship)           exec bash "$CHE_LIB_DIR/git/ship.sh"   "$@" ;;
-  flow)           exec bash "$CHE_LIB_DIR/git/flow.sh"   "$@" ;;
-  done)           exec bash "$CHE_LIB_DIR/git/done.sh"   "$@" ;;
-  status)         exec bash "$CHE_LIB_DIR/status.sh"     "$@" ;;
-  doctor)         exec bash "$CHE_LIB_DIR/doctor.sh"     "$@" ;;
+  commit)         exec bash "$CHE_LIB_DIR/git/commit.sh"  "$@" ;;
+  ship)           exec bash "$CHE_LIB_DIR/git/ship.sh"    "$@" ;;
+  flow)           exec bash "$CHE_LIB_DIR/git/flow.sh"    "$@" ;;
+  done)           exec bash "$CHE_LIB_DIR/git/done.sh"    "$@" ;;
+  run)            exec bash "$CHE_LIB_DIR/workflow/run.sh" "$@" ;;
+  workflow)       exec bash "$CHE_LIB_DIR/workflow.sh"    "$@" ;;
+  status)         exec bash "$CHE_LIB_DIR/status.sh"      "$@" ;;
+  doctor)         exec bash "$CHE_LIB_DIR/doctor.sh"      "$@" ;;
   help|-h|--help) usage ;;
   *)
     echo "che: unknown command '$cmd'" >&2

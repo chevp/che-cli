@@ -120,13 +120,36 @@ wf_input_required() {
   [ "$req" = "true" ] && printf '1' || printf '0'
 }
 
-# Substitute ${key} placeholders in a string from the WF_INPUTS associative
-# array. Echoes the result.
+# Inputs are stored as parallel arrays (WF_INPUT_KEYS / WF_INPUT_VALS) because
+# che targets bash 3.2 (the macOS system bash), which has no associative arrays.
+WF_INPUT_KEYS=()
+WF_INPUT_VALS=()
+
+wf_input_set() {
+  WF_INPUT_KEYS+=("$1")
+  WF_INPUT_VALS+=("$2")
+}
+
+# Echo the value of an input, or empty string if unset.
+wf_input_get() {
+  local key="$1" i
+  for i in "${!WF_INPUT_KEYS[@]}"; do
+    if [ "${WF_INPUT_KEYS[$i]}" = "$key" ]; then
+      printf '%s' "${WF_INPUT_VALS[$i]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+wf_input_has() { wf_input_get "$1" >/dev/null 2>&1; }
+
+# Substitute ${key} placeholders in a string from the input arrays.
 wf_substitute() {
-  local s="$1"
-  local k v
-  for k in "${!WF_INPUTS[@]}"; do
-    v="${WF_INPUTS[$k]}"
+  local s="$1" i k v
+  for i in "${!WF_INPUT_KEYS[@]}"; do
+    k="${WF_INPUT_KEYS[$i]}"
+    v="${WF_INPUT_VALS[$i]}"
     s="${s//\$\{$k\}/$v}"
   done
   printf '%s' "$s"
