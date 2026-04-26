@@ -13,7 +13,7 @@ sure that prefix is on your `PATH`.
 
 ---
 
-## Quick install
+## Quick install — Linux / macOS / WSL
 
 ```sh
 git clone https://github.com/chevp/che-cli.git
@@ -34,19 +34,48 @@ terminal afterwards (or `source` the file) to pick it up.
 
 ---
 
+## Quick install — Windows (PowerShell)
+
+```powershell
+git clone https://github.com/chevp/che-cli.git
+cd che-cli
+.\install.ps1
+# Restart your terminal, then:
+che doctor
+```
+
+The default prefix is `%LOCALAPPDATA%\che`, so the installer writes:
+
+- `%LOCALAPPDATA%\che\bin\che` — the dispatcher
+- `%LOCALAPPDATA%\che\lib\che\` — the full support tree
+
+The installer adds `%LOCALAPPDATA%\che\bin` to your user `PATH`. 
+**Restart your PowerShell/terminal for the change to take effect.**
+
+---
+
 ## Custom prefix
+
+### Unix-like (Bash)
 
 ```sh
 PREFIX=/usr/local ./install.sh        # system-wide (needs sudo)
 PREFIX="$HOME/tools/che" ./install.sh  # somewhere else entirely
 ```
 
-Anything that exists and is on your `PATH` works. The installer never
-modifies your shell rc when the chosen prefix is already on `PATH`.
+### Windows (PowerShell)
+
+```powershell
+.\install.ps1 "C:\Program Files\che"
+# or
+$env:PREFIX = "C:\custom\path"; .\install.ps1
+```
+
+Anything that exists and is on your `PATH` works.
 
 ---
 
-## Opt out of the rc edit
+## Opt out of PATH modification (Unix only)
 
 If you manage your shell rc by hand (e.g. via dotfiles), set
 `CHE_NO_PATH_EDIT=1` and the installer prints the export line instead of
@@ -67,10 +96,9 @@ CHE_NO_PATH_EDIT=1 ./install.sh
 | `curl` | provider clients speak HTTP                    |
 | `jq`   | request/response JSON shaping                  |
 
-On macOS these are usually pre-installed (or available via Homebrew).
-On Linux: `apt install bash git curl jq` (or your distro's equivalent).
-On Windows: run from Git Bash or WSL — pure Windows `cmd`/PowerShell is
-not supported.
+**Linux:** `apt install bash git curl jq` (or your distro's equivalent).  
+**macOS:** Usually pre-installed or available via Homebrew.  
+**Windows:** Use Git Bash or WSL for the Bash-based `che commit` / `che ship` tools. Windows PowerShell is supported for installation only; running che commands requires bash.  
 
 ---
 
@@ -79,6 +107,8 @@ not supported.
 `che` defaults to a **local Ollama server**, so the zero-config path needs
 no API keys. To use OpenAI or Anthropic, drop a `.env` next to the repo
 or export the variables in your shell.
+
+### Unix-like
 
 ```sh
 # .env  (see .env.example)
@@ -89,6 +119,23 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```sh
 CHE_PROVIDER=openai     che commit
 CHE_PROVIDER=anthropic  che commit
+```
+
+### Windows (Git Bash / WSL)
+
+```bash
+# In Git Bash / WSL shell:
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+
+CHE_PROVIDER=openai che commit
+```
+
+Or add to your `.bashrc` / `.bash_profile`:
+
+```bash
+export OPENAI_API_KEY="sk-..."
+export CHE_PROVIDER="openai"
 ```
 
 For the local Ollama setup itself, follow the companion guide:

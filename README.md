@@ -24,6 +24,8 @@ commit with this message? [Y/n/e=edit] y
 
 ## Install
 
+### Linux / macOS / WSL
+
 ```sh
 git clone https://github.com/chevp/che-cli.git
 cd che-cli
@@ -40,9 +42,27 @@ is not already on your `PATH`, the installer appends an `export PATH=...` line
 to your shell rc (`~/.zshrc` or `~/.bash_profile`/`~/.bashrc`) — open a new
 terminal afterwards. Pass `CHE_NO_PATH_EDIT=1` to opt out.
 
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/chevp/che-cli.git
+cd che-cli
+.\install.ps1
+```
+
+This installs to `%LOCALAPPDATA%\che` and adds it to your user `PATH`.
+Restart your terminal after installation, then run **`che doctor`**.
+
+Override the installation path with:
+```powershell
+.\install.ps1 "C:\Program Files\che"
+# or use environment variable
+$env:PREFIX = "C:\custom\path"; .\install.ps1
+```
+
 After installing, run **`che doctor`** to verify everything works.
 
-**Requirements:** `bash`, `git`, `curl`, `jq`. On Windows: Git Bash or WSL.
+**Requirements (all platforms):** `bash`, `git`, `curl`, `jq`.
 
 ---
 
