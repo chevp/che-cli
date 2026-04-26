@@ -5,6 +5,7 @@ set -euo pipefail
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$LIB_DIR/provider.sh"
 . "$LIB_DIR/ui.sh"
+. "$LIB_DIR/git/push.sh"
 provider_load
 
 MAX_DIFF_CHARS="${CHE_MAX_DIFF_CHARS:-8000}"
@@ -167,5 +168,5 @@ else
 fi
 
 if $push; then
-  git push
+  git_push_with_recovery
 fi

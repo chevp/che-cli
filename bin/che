@@ -17,6 +17,8 @@ Commands:
                       in flow mode: push -u + open/update draft PR
   flow <branch>       start a flow branch (pull base, checkout new, mark repo)
   done                finish active flow: gh pr merge --squash --auto, back to base
+  explain [question]  ask the active LLM to diagnose the last che ship/commit failure
+                      (read-only — prints a suggested command, never executes)
   init                provision local ollama (verify binary, start server, pull model)
   run <name>          execute a workflow from .che/workflows/<name>.yml
                       (alias for: che workflow run <name>)
@@ -42,6 +44,7 @@ case "$cmd" in
   ship)           exec bash "$CHE_LIB_DIR/git/ship.sh"    "$@" ;;
   flow)           exec bash "$CHE_LIB_DIR/git/flow.sh"    "$@" ;;
   done)           exec bash "$CHE_LIB_DIR/git/done.sh"    "$@" ;;
+  explain)        exec bash "$CHE_LIB_DIR/explain.sh"     "$@" ;;
   init)           exec bash "$CHE_LIB_DIR/init.sh"        "$@" ;;
   run)            exec bash "$CHE_LIB_DIR/workflow/run.sh" "$@" ;;
   workflow)       exec bash "$CHE_LIB_DIR/workflow.sh"    "$@" ;;

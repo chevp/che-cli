@@ -8,6 +8,7 @@ set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHE_BIN="${CHE_BIN:-$LIB_DIR/../../bin/che}"
+. "$LIB_DIR/git/push.sh"
 
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   echo "che ship: not a git repository" >&2
@@ -73,7 +74,7 @@ if [ -f "$marker" ]; then
   bash "$LIB_DIR/git/commit.sh" --yes
 
   # Push (sets upstream on first call; cheap to repeat).
-  git push -u origin "$branch"
+  git_push_with_recovery -u origin "$branch"
 
   # Open draft PR on first call.
   if [ -z "$pr" ]; then
