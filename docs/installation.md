@@ -89,16 +89,16 @@ CHE_NO_PATH_EDIT=1 ./install.sh
 
 ## Requirements
 
-| Tool   | Why                                            |
-|--------|------------------------------------------------|
-| `bash` | every script targets bash, not POSIX `sh`      |
-| `git`  | `che commit` / `che ship` operate on staged diffs |
-| `curl` | provider clients speak HTTP                    |
-| `jq`   | request/response JSON shaping                  |
+| Tool      | Why                                              |
+|-----------|--------------------------------------------------|
+| `bash`    | every script targets bash, not POSIX `sh`        |
+| `git`     | `che commit` / `che ship` operate on staged diffs |
+| `curl`    | provider clients speak HTTP                      |
+| `python3` | request/response JSON shaping (or `python`)      |
 
-**Linux:** `apt install bash git curl jq` (or your distro's equivalent).  
-**macOS:** Usually pre-installed or available via Homebrew.  
-**Windows:** Use Git Bash or WSL for the Bash-based `che commit` / `che ship` tools. Windows PowerShell is supported for installation only; running che commands requires bash.  
+**Linux:** `apt install bash git curl python3` (or your distro's equivalent).  
+**macOS:** All four ship with the OS or are available via Homebrew.  
+**Windows:** Use Git Bash or WSL for the Bash-based `che commit` / `che ship` tools. Windows PowerShell is supported for installation only; running che commands requires bash. Install Python via `winget install Python.Python.3` if it isn't already present.  
 
 ---
 

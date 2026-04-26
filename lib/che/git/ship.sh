@@ -40,11 +40,23 @@ if [ -f "$repo_root/.gitmodules" ]; then
   done < <(git -C "$repo_root" config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
 fi
 
-# --- pull main repo (fast-forward only) before commit/push ---
+# --- pull main repo before commit/push: ff-only first, fall back to rebase ---
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
    && git -C "$repo_root" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-  git -C "$repo_root" pull --ff-only \
-    || { echo "che ship: pull --ff-only failed in $(basename "$repo_root") — resolve and retry" >&2; exit 1; }
+  if ! git -C "$repo_root" pull --ff-only >/dev/null 2>&1; then
+    echo "che ship: ff-only pull failed in $(basename "$repo_root") — trying pull --rebase" >&2
+    if ! git -C "$repo_root" pull --rebase; then
+      git_dir_pull="$(git -C "$repo_root" rev-parse --git-dir)"
+      if [ -d "$git_dir_pull/rebase-merge" ] || [ -d "$git_dir_pull/rebase-apply" ]; then
+        conflicts="$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null)"
+        echo "che ship: rebase produced conflicts in $(basename "$repo_root") — aborting" >&2
+        [ -n "$conflicts" ] && printf 'conflicting files:\n%s\n' "$conflicts" >&2
+        git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
+      fi
+      echo "che ship: pull failed in $(basename "$repo_root") — resolve manually and retry" >&2
+      exit 1
+    fi
+  fi
 fi
 
 # --- flow mode: commit, push -u, open/update draft PR ---
@@ -115,7 +127,10 @@ if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   if [ -n "$flow_branch" ] && git -C "$repo_root" show-ref --verify --quiet "refs/heads/$flow_branch"; then
     recover_branch="$flow_branch"
   else
-    recover_branch="$(git -C "$repo_root" branch --contains "$detached_commit" --format='%(refname:short)' | head -n 1 | tr -d '\r')"
+    # for-each-ref refs/heads/ only returns real local branches — unlike
+    # `git branch --contains`, which prepends "(HEAD detached at <sha>)" and
+    # would otherwise trip up `head -n 1`.
+    recover_branch="$(git -C "$repo_root" for-each-ref --format='%(refname:short)' --contains "$detached_commit" refs/heads/ 2>/dev/null | head -n 1 | tr -d '\r')"
   fi
 
   if [ -n "$recover_branch" ]; then

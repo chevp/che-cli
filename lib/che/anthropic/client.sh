@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Anthropic HTTP client wrapper.
 # Mirrors the request shape in client/http/anthropic.http.
-# Requires: curl, jq, ANTHROPIC_API_KEY in env.
+# Requires: curl, python3 (or python), ANTHROPIC_API_KEY in env.
+
+_CHE_ANTHROPIC_CLIENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$_CHE_ANTHROPIC_CLIENT_DIR/json.sh"
 
 : "${ANTHROPIC_API_KEY:=}"
 : "${CHE_ANTHROPIC_HOST:=https://api.anthropic.com/v1}"
@@ -33,16 +36,13 @@ anthropic_generate() {
   local prompt="$1"
   local model="${2:-$CHE_ANTHROPIC_MODEL}"
   anthropic_configured || { echo "ANTHROPIC_API_KEY not set" >&2; return 1; }
+  local max_tokens="${CHE_ANTHROPIC_MAX_TOKENS:-1024}"
   local payload
-  payload="$(jq -n \
-    --arg model "$model" \
-    --arg prompt "$prompt" \
-    --argjson max_tokens "$CHE_ANTHROPIC_MAX_TOKENS" \
-    '{model: $model, max_tokens: $max_tokens, stream: false, messages: [{role: "user", content: $prompt}]}')"
+  payload="{\"model\":$(json_string_literal "$model"),\"max_tokens\":$max_tokens,\"stream\":false,\"messages\":[{\"role\":\"user\",\"content\":$(json_string_literal "$prompt")}]}"
   curl -sS --fail -X POST "$CHE_ANTHROPIC_HOST/messages" \
     -H "x-api-key: $ANTHROPIC_API_KEY" \
     -H "anthropic-version: $CHE_ANTHROPIC_VERSION" \
     -H 'Content-Type: application/json' \
     -d "$payload" \
-    | jq -r '.content[0].text // empty'
+    | json_extract '.content[0].text'
 }

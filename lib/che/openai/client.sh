@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # OpenAI HTTP client wrapper.
 # Mirrors the request shape in client/http/openai.http.
-# Requires: curl, jq, OPENAI_API_KEY in env.
+# Requires: curl, python3 (or python), OPENAI_API_KEY in env.
+
+_CHE_OPENAI_CLIENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$_CHE_OPENAI_CLIENT_DIR/json.sh"
 
 : "${OPENAI_API_KEY:=}"
 : "${CHE_OPENAI_HOST:=https://api.openai.com/v1}"
@@ -30,11 +33,10 @@ openai_generate() {
   local model="${2:-$CHE_OPENAI_MODEL}"
   openai_configured || { echo "OPENAI_API_KEY not set" >&2; return 1; }
   local payload
-  payload="$(jq -n --arg model "$model" --arg prompt "$prompt" \
-    '{model: $model, stream: false, messages: [{role: "user", content: $prompt}]}')"
+  payload="{\"model\":$(json_string_literal "$model"),\"stream\":false,\"messages\":[{\"role\":\"user\",\"content\":$(json_string_literal "$prompt")}]}"
   curl -sS --fail -X POST "$CHE_OPENAI_HOST/chat/completions" \
     -H "Authorization: Bearer $OPENAI_API_KEY" \
     -H 'Content-Type: application/json' \
     -d "$payload" \
-    | jq -r '.choices[0].message.content // empty'
+    | json_extract '.choices[0].message.content'
 }

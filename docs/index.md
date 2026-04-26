@@ -28,7 +28,7 @@ che doctor
 
 Default install prefix is `~/.local`. Override with `PREFIX=/usr/local ./install.sh`.
 
-Requirements: `bash`, `git`, `curl`, `jq`. On Windows, run from Git Bash or WSL.
+Requirements: `bash`, `git`, `curl`, `python3` (or `python`). On Windows, run from Git Bash or WSL.
 
 ---
 

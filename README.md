@@ -62,7 +62,7 @@ $env:PREFIX = "C:\custom\path"; .\install.ps1
 
 After installing, run **`che doctor`** to verify everything works.
 
-**Requirements (all platforms):** `bash`, `git`, `curl`, `jq`.
+**Requirements (all platforms):** `bash`, `git`, `curl`, `python3` (or `python`).
 
 ---
 

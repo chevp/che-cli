@@ -41,7 +41,7 @@ Environment:
   CHE_ANTHROPIC_MODEL      Anthropic model  (needs ANTHROPIC_API_KEY)
   CHE_MAX_DIFF_CHARS       diff truncation (default: 8000)
 
-Requires: git, curl, jq, and a working LLM provider.
+Requires: git, curl, python3 (or python), and a working LLM provider.
 Run 'che doctor' to verify.
 EOF
       exit 0
@@ -51,9 +51,13 @@ EOF
   shift
 done
 
-for bin in git curl jq; do
+for bin in git curl; do
   command -v "$bin" >/dev/null 2>&1 || { echo "missing dependency: $bin" >&2; exit 1; }
 done
+if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+  echo "missing dependency: python3 (or python) — install via brew/apt/winget" >&2
+  exit 1
+fi
 
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   echo "che commit: not a git repository" >&2

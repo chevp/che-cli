@@ -60,13 +60,20 @@ case "$target" in
     run_section anthropic anthropic_check
     run_section workflow  workflow_check
     printf 'shell deps:\n'
-    for bin in curl jq bash; do
+    for bin in curl bash; do
       if command -v "$bin" >/dev/null 2>&1; then
         ok "$bin"
       else
         fail "$bin missing"
       fi
     done
+    if command -v python3 >/dev/null 2>&1; then
+      ok "python3"
+    elif command -v python >/dev/null 2>&1; then
+      ok "python ($(python -c 'import sys;print(sys.version.split()[0])' 2>/dev/null || echo unknown))"
+    else
+      fail "python3 missing — install via brew install python3 / apt install python3 / winget install Python.Python.3"
+    fi
     ;;
   -h|--help)
     cat <<EOF
