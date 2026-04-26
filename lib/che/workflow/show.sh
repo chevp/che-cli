@@ -62,10 +62,10 @@ for ((i = 0; i < steps_len; i++)); do
   printf '     %sscript%s %s\n' "$WF_C_DIM" "$WF_C_RESET" "$script"
   args_len="$(wf_yq ".steps[$i].args | length" "$file")"
   if [ "${args_len:-0}" -gt 0 ]; then
-    printf '     %sargs%s   ' "$WF_C_DIM" "$WF_C_RESET"
+    printf '     %sargs%s  ' "$WF_C_DIM" "$WF_C_RESET"
     for ((j = 0; j < args_len; j++)); do
       a="$(wf_yq ".steps[$i].args[$j]" "$file")"
-      printf '%q ' "$a"
+      printf ' %s' "$a"
     done
     printf '\n'
   fi
