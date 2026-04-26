@@ -17,6 +17,7 @@ anthropic_check() {
   else
     fail "ANTHROPIC_API_KEY not set"
     info "set it via .env (see .env.example) or export it"
+    info "get a key: https://console.anthropic.com/settings/keys"
     return 1
   fi
 

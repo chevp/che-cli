@@ -24,6 +24,7 @@ gh_install_hint() {
     wsl|linux) info "install: see https://github.com/cli/cli/blob/trunk/docs/install_linux.md" ;;
     *)         info "install: https://cli.github.com/" ;;
   esac
+  info "docs:    https://cli.github.com/manual/"
 }
 
 git_check() {

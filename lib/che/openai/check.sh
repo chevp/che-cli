@@ -17,6 +17,7 @@ openai_check() {
   else
     fail "OPENAI_API_KEY not set"
     info "set it via .env (see .env.example) or export it"
+    info "get a key: https://platform.openai.com/api-keys"
     return 1
   fi
 

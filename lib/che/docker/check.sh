@@ -17,6 +17,7 @@ docker_install_hint() {
     wsl|linux) info "install: https://docs.docker.com/engine/install/" ;;
     *)         info "install: https://www.docker.com/get-started/" ;;
   esac
+  info "docs:    https://docs.docker.com/get-started/"
 }
 
 docker_start_hint() {

@@ -19,6 +19,7 @@ ollama_install_hint() {
     wsl|linux) info "install: curl -fsSL https://ollama.com/install.sh | sh" ;;
     *)         info "install: https://ollama.com/download" ;;
   esac
+  info "guide:   https://chevp.github.io/cura-llm-local/  (5-min local setup)"
 }
 
 ollama_check() {
