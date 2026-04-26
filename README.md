@@ -59,6 +59,15 @@ che commit --edit       # open $EDITOR with the message pre-filled
 che commit --yes        # skip the confirmation prompt
 ```
 
+### `che ship` — add + commit + push, no prompts
+
+Shortcut for `che commit --push --yes`: stages everything, generates the
+commit message, commits, and pushes — without asking for confirmation.
+
+```sh
+che ship                # one-shot add + commit + push
+```
+
 Provider is selected via `CHE_PROVIDER`:
 
 ```sh
