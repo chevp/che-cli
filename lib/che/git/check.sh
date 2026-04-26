@@ -17,14 +17,41 @@ git_install_hint() {
   esac
 }
 
+gh_install_hint() {
+  case "$CHE_OS" in
+    darwin)    info "install: brew install gh" ;;
+    windows)   info "install: winget install --id GitHub.cli" ;;
+    wsl|linux) info "install: see https://github.com/cli/cli/blob/trunk/docs/install_linux.md" ;;
+    *)         info "install: https://cli.github.com/" ;;
+  esac
+}
+
 git_check() {
+  local rc=0
   if command -v git >/dev/null 2>&1; then
     ok "git $(git --version | awk '{print $3}')"
-    return 0
+  else
+    fail "git not installed"
+    git_install_hint
+    rc=1
   fi
-  fail "git not installed"
-  git_install_hint
-  return 1
+
+  if command -v gh >/dev/null 2>&1; then
+    ok "gh $(gh --version | awk 'NR==1{print $3}')  (required for che flow / che done)"
+    if gh auth status >/dev/null 2>&1; then
+      ok "gh authenticated"
+    else
+      fail "gh not authenticated"
+      info "run: gh auth login"
+      rc=1
+    fi
+  else
+    fail "gh not installed  (required for che flow / che done)"
+    gh_install_hint
+    rc=1
+  fi
+
+  return $rc
 }
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then

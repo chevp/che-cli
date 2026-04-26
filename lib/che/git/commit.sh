@@ -85,7 +85,7 @@ Format:
 
 Rules:
 - Reply with ONLY the commit message. No quotes, no explanation, no preamble.
-- Title: one line, max 72 characters, imperative mood (e.g. "add", "fix", "refactor").
+- Title: one line, at least 4 words and max 72 characters, imperative mood starting with a verb (e.g. "add", "fix", "refactor"). Never a single word.
 - Body: 2-5 bullets, each starting with "- ", describing the important changes.
 - Each bullet should be concise (max ~100 characters) and focus on what changed and why.
 - Skip the body only if the change is trivial (e.g. typo fix, single-line tweak).

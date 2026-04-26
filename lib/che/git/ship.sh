@@ -91,4 +91,9 @@ fi
 
 # --- default: existing behavior ---
 printf '\n── repo: %s ──\n' "$(basename "$repo_root")"
-exec bash "$LIB_DIR/git/commit.sh" --push --yes
+if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
+  exec bash "$LIB_DIR/git/commit.sh" --push --yes
+else
+  echo "che ship: detached HEAD, committing without push"
+  exec bash "$LIB_DIR/git/commit.sh" --yes
+fi

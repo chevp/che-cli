@@ -63,7 +63,7 @@ done
 if [ "${#env_set[@]}" -gt 0 ]; then
   kv "env" "${env_set[0]}"
   for e in "${env_set[@]:1}"; do
-    printf '  %-18s   %s\n' "" "$e"
+    printf '  %-18s %s\n' "" "$e"
   done
 fi
 
