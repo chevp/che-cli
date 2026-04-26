@@ -54,15 +54,16 @@ git_push_with_recovery() {
   set -e
 
   out="$(cat "$tmp_out")"
-  cat "$tmp_out"
 
   if [ "$rc" -eq 0 ]; then
+    cat "$tmp_out"
     return 0
   fi
 
   # Tier 1: known recoverable — non-fast-forward / fetch-first reject.
+  # Suppress the noisy rejection blob; print one calm line and recover.
   if echo "$out" | grep -qE 'rejected.*(fetch first|non-fast-forward)|Updates were rejected'; then
-    printf '\n%sche ship: remote moved — running git pull --rebase, then retrying once%s\n' \
+    printf '%sche ship: remote moved — pulling --rebase, retrying push%s\n' \
       "$PUSH_C_DIM" "$PUSH_C_RESET" >&2
 
     local rebase_out rebase_rc
@@ -70,7 +71,9 @@ git_push_with_recovery() {
     rebase_rc=$?
 
     if [ "$rebase_rc" -ne 0 ]; then
-      # Conflict or other rebase failure. Bail out, abort if mid-rebase.
+      # Conflict or other rebase failure. Show what git push and rebase said
+      # so the user can diagnose, then abort if mid-rebase.
+      cat "$tmp_out"
       printf '%s%s%s\n' "$PUSH_C_DIM" "$rebase_out" "$PUSH_C_RESET"
       if git rev-parse --git-dir >/dev/null 2>&1 \
          && [ -d "$(git rev-parse --git-dir)/rebase-merge" -o -d "$(git rev-parse --git-dir)/rebase-apply" ]; then
@@ -87,21 +90,21 @@ git_push_with_recovery() {
       return "$rebase_rc"
     fi
 
-    printf '%s%s%s\n' "$PUSH_C_DIM" "$rebase_out" "$PUSH_C_RESET"
-
     # Retry push, exactly once.
     set +e
     git push "$@" >"$tmp_out" 2>&1
     rc=$?
     set -e
     out="$(cat "$tmp_out")"
-    cat "$tmp_out"
 
     if [ "$rc" -eq 0 ]; then
+      cat "$tmp_out"
       printf '%s✓ push succeeded after rebase%s\n' "$PUSH_C_GREEN" "$PUSH_C_RESET" >&2
       return 0
     fi
 
+    # Retry failed: now show both attempts so the user has full context.
+    cat "$tmp_out"
     _push_record_error "$cmd (after pull --rebase)" "$rc" "$out"
     printf '\n%sche ship: push still failing after one retry%s\n' "$PUSH_C_RED" "$PUSH_C_RESET" >&2
     printf 'run %sche explain%s for an LLM-assisted diagnosis\n' \
@@ -109,7 +112,8 @@ git_push_with_recovery() {
     return "$rc"
   fi
 
-  # Unknown failure: record + advise.
+  # Unknown failure: surface the original output, record + advise.
+  cat "$tmp_out"
   _push_record_error "$cmd" "$rc" "$out"
   printf '\n%sche ship: push failed (exit %d)%s\n' "$PUSH_C_RED" "$rc" "$PUSH_C_RESET" >&2
   printf 'run %sche explain%s for an LLM-assisted diagnosis\n' \
