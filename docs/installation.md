@@ -139,7 +139,7 @@ export CHE_PROVIDER="openai"
 ```
 
 For the local Ollama setup itself, follow the companion guide:
-**[cura-llm-local](https://chevp.github.io/cura-llm-local/)** — about
+**[cura-llm-local](https://chevp.github.io/cura-llm-native/)** — about
 five minutes from zero to a working `llama3.2` server.
 
 ---
