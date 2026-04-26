@@ -20,6 +20,7 @@ Commands:
   run <name>          execute a workflow from .che/workflows/<name>.yml
                       (alias for: che workflow run <name>)
   workflow <sub>      list / show / run workflows from .che/workflows/
+  reinstall           re-run the current repo's scripts/reinstall.sh
   status              git status + che-cli config (provider, model, env)
   doctor [target]     verify deps and providers (git, gh, docker, ollama, openai,
                       anthropic, workflow)
@@ -42,6 +43,7 @@ case "$cmd" in
   done)           exec bash "$CHE_LIB_DIR/git/done.sh"    "$@" ;;
   run)            exec bash "$CHE_LIB_DIR/workflow/run.sh" "$@" ;;
   workflow)       exec bash "$CHE_LIB_DIR/workflow.sh"    "$@" ;;
+  reinstall)      exec bash "$CHE_LIB_DIR/reinstall.sh"   "$@" ;;
   status)         exec bash "$CHE_LIB_DIR/status.sh"      "$@" ;;
   doctor)         exec bash "$CHE_LIB_DIR/doctor.sh"      "$@" ;;
   help|-h|--help) usage ;;
