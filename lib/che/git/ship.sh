@@ -43,9 +43,9 @@ fi
 # --- pull main repo before commit/push: ff-only first, fall back to rebase ---
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
    && git -C "$repo_root" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-  if ! git -C "$repo_root" pull --ff-only >/dev/null 2>&1; then
-    echo "che ship: ff-only pull failed in $(basename "$repo_root") — trying pull --rebase" >&2
-    if ! git -C "$repo_root" pull --rebase; then
+  if ! git -C "$repo_root" pull --ff-only --autostash >/dev/null 2>&1; then
+    echo "che ship: ff-only pull failed in $(basename "$repo_root") — trying pull --rebase --autostash" >&2
+    if ! git -C "$repo_root" pull --rebase --autostash; then
       git_dir_pull="$(git -C "$repo_root" rev-parse --git-dir)"
       if [ -d "$git_dir_pull/rebase-merge" ] || [ -d "$git_dir_pull/rebase-apply" ]; then
         conflicts="$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null)"
