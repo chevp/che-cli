@@ -24,48 +24,63 @@ commit with this message? [Y/n/e=edit] y
 
 ## Install
 
+The installers do more than copy files: they detect missing dependencies
+(`git`, `curl`, `python3`, PyYAML, **ollama**, the default model) and install
+them through the platform's native package manager. Each install is
+confirmed interactively unless you pass `--yes` / `-AssumeYes`.
+
+| Common flag           | Effect                                                  |
+|-----------------------|---------------------------------------------------------|
+| `--yes` / `-AssumeYes`| say yes to every "install X?" prompt (unattended)       |
+| `--no-deps`           | skip OS-package installs (don't touch git/python/ollama)|
+| `--no-ollama`         | leave ollama alone (don't install / serve / pull)       |
+| `--no-model`          | install ollama but skip the multi-GB model pull         |
+
 ### Linux / macOS / WSL
 
 ```sh
 git clone https://github.com/chevp/che-cli.git
 cd che-cli
-./install.sh
+./install.sh                  # interactive — confirms each install
+./install.sh --yes            # unattended (CI-friendly)
+PREFIX=/usr/local ./install.sh
 ```
 
 This installs:
 
 - `~/.local/bin/che`              — the dispatcher
 - `~/.local/lib/che/`              — full subcommand tree
+- (if missing & confirmed) `git`, `curl`, `python3`, `PyYAML`, `ollama`, `gh`
+- starts `ollama serve` in the background and pulls `$CHE_OLLAMA_MODEL`
+  (default `llama3.2`)
 
-Override the prefix with `PREFIX=/usr/local ./install.sh`. If `~/.local/bin`
-is not already on your `PATH`, the installer appends an `export PATH=...` line
-to your shell rc (`~/.zshrc` or `~/.bash_profile`/`~/.bashrc`) — open a new
-terminal afterwards. Pass `CHE_NO_PATH_EDIT=1` to opt out.
+Package-manager support: `brew` (macOS), `apt-get`, `dnf`/`yum`, `pacman`,
+`zypper`, `apk`. If `~/.local/bin` is not already on your `PATH`, the
+installer appends an `export PATH=...` line to your shell rc (`~/.zshrc`,
+`~/.bash_profile`/`~/.bashrc`, or `~/.config/fish/config.fish`) — open a new
+terminal afterwards. Pass `--no-path-edit` (or `CHE_NO_PATH_EDIT=1`) to opt
+out.
 
 ### Windows (PowerShell)
 
 ```powershell
 git clone https://github.com/chevp/che-cli.git
 cd che-cli
-.\install.ps1
+.\install.ps1                 # interactive
+.\install.ps1 -AssumeYes      # unattended
+.\install.ps1 -Prefix "C:\Program Files\che"
 ```
 
 This installs to `%LOCALAPPDATA%\che` and adds it to your user `PATH`.
-Restart your terminal after installation, then run **`che doctor`**.
-
-Override the installation path with:
-```powershell
-.\install.ps1 "C:\Program Files\che"
-# or use environment variable
-$env:PREFIX = "C:\custom\path"; .\install.ps1
-```
-
-After installing, run **`che doctor`** to verify everything works.
+When dependencies are missing, it uses **winget** to install Git for
+Windows, Python 3, and Ollama (with a direct `OllamaSetup.exe` download as
+fallback), then installs PyYAML via `pip --user` and pulls the default
+model. Restart your terminal afterwards, then run **`che doctor`**.
 
 ### Windows (Inno Setup installer)
 
-If you'd rather not run the script-based installer, build a proper Windows
-installer that handles `PATH`, prerequisite checks, and uninstall cleanly:
+A proper Windows installer is also available — it bundles the same
+dependency bootstrapper and runs it post-install.
 
 ```powershell
 cd installer
@@ -73,9 +88,16 @@ cd installer
 ```
 
 Output lands in [installer/Output/](installer/Output/). Double-click the
-`.exe` to install. Build prerequisites: [Inno Setup 6](https://jrsoftware.org/isdl.php).
+`.exe`. Two opt-in tasks during the wizard:
 
-**Requirements (all platforms):** `bash`, `git`, `curl`, `python3` (or `python`).
+- **Install missing dependencies (Git, Python, Ollama)** — checked by default
+- **Also pull the default Ollama model** — unchecked by default (multi-GB)
+
+Build prerequisites: [Inno Setup 6](https://jrsoftware.org/isdl.php).
+
+**Manual prerequisites (only if you opt out of dependency install):**
+`bash`, `git`, `curl`, `python3` (or `python`), and `ollama` for the default
+provider.
 
 ---
 
