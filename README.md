@@ -172,6 +172,21 @@ che run <name> --tag=v1.2.3             # execute (alias: che workflow run)
 che run <name> --tag=v1.2.3 --dry-run   # plan only
 ```
 
+A workflow can also declare a `trigger:` (string or list) that registers
+`che <trigger>` as a top-level shortcut, including over built-ins like
+`che ship`:
+
+```yaml
+# .che/workflows/ship.yml
+name: ship
+trigger: ship                # `che ship` now runs this file
+steps:
+  - name: tests
+    script: scripts/test.sh
+  - name: built-in ship
+    script: ~/.local/lib/che/git/ship.sh   # original behavior, still reachable
+```
+
 A copy-paste template lives at [`.che/workflows/example.yml`](.che/workflows/example.yml).
 Full guide: [chevp.github.io/che-cli/workflow.html](https://chevp.github.io/che-cli/workflow.html).
 

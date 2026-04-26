@@ -23,6 +23,8 @@ Commands:
   run <name>          execute a workflow from .che/workflows/<name>.yml
                       (alias for: che workflow run <name>)
   workflow <sub>      list / show / run workflows from .che/workflows/
+  <trigger> [args]    any workflow with 'trigger: <name>' in its YAML can be
+                      run as 'che <name>' — shadows the built-ins above
   reinstall           re-run the current repo's scripts/reinstall.sh
   status              git status + che-cli config (provider, model, env)
   doctor [target]     verify deps and providers (git, gh, docker, ollama, openai,
@@ -38,6 +40,26 @@ EOF
 
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift || true
+
+# Workflow triggers shadow built-ins: a `.che/workflows/*.yml` declaring
+# `trigger: <cmd>` takes precedence over the case statement below. This is
+# how `che ship` runs your custom workflow instead of `git/ship.sh`.
+# Reserved cmds (help/workflow/run) skip the lookup so workflows remain
+# manageable even if a user authors a `trigger: workflow` (footgun guard).
+case "$cmd" in
+  help|-h|--help|workflow|run) ;;
+  *)
+    if . "$CHE_LIB_DIR/workflow/loader.sh" 2>/dev/null; then
+      # set -e + command substitution: capture rc explicitly so a "no match"
+      # (rc=1) doesn't kill the dispatcher before we reach the built-ins.
+      wf_match="$(wf_resolve_trigger "$cmd")" && wf_rc=0 || wf_rc=$?
+      case "$wf_rc" in
+        0) exec bash "$CHE_LIB_DIR/workflow/run.sh" "$wf_match" "$@" ;;
+        2) exit 2 ;;
+      esac
+    fi
+    ;;
+esac
 
 case "$cmd" in
   commit)         exec bash "$CHE_LIB_DIR/git/commit.sh"  "$@" ;;

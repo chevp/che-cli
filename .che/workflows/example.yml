@@ -1,7 +1,10 @@
 # Template: a normalized che workflow.
 #
 # Copy this file into your own repo at <repo>/.che/workflows/<name>.yml,
-# then edit. Run with:  che run <name>  (or: che workflow run <name>)
+# then edit. Run with:
+#   che run <name>           — explicit form
+#   che workflow run <name>  — same thing
+#   che <trigger>            — if this workflow declares 'trigger:' below
 #
 # Rules:
 #   - Each step references an existing executable script via 'script:'.
@@ -9,11 +12,18 @@
 #   - 'args:' entries are shell-substituted for ${input} placeholders.
 #   - Steps run sequentially with the workflow root (the folder containing
 #     .che/) as $PWD. The first failing step aborts the run.
+#   - 'trigger:' is optional. A string ('trigger: ship') or list
+#     ('trigger: [ship, deploy]') registers `che <name>` shortcuts that
+#     shadow built-ins like `che ship`. To still call the original built-in
+#     from inside the workflow, run its underlying script as a step
+#     (e.g. ~/.local/lib/che/git/ship.sh).
 #
 # Docs: https://chevp.github.io/che-cli/workflow.html
 
 name: example
 description: Template workflow — replace with what your pipeline actually does
+
+# trigger: example   # uncomment to enable `che example` as a shortcut
 
 inputs:
   - name: tag

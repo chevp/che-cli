@@ -32,6 +32,11 @@ wf_validate "$file"
 printf '%sname%s        %s\n'        "$WF_C_BOLD" "$WF_C_RESET" "$(wf_yq '.name' "$file")"
 desc="$(wf_yq '.description' "$file")"
 [ -n "$desc" ] && printf '%sdescription%s %s\n' "$WF_C_BOLD" "$WF_C_RESET" "$desc"
+trig_kind="$(wf_yq '.trigger | tag' "$file")"
+case "$trig_kind" in
+  '!!str') printf '%strigger%s     che %s\n' "$WF_C_BOLD" "$WF_C_RESET" "$(wf_yq '.trigger' "$file")" ;;
+  '!!seq') printf '%strigger%s     che %s\n' "$WF_C_BOLD" "$WF_C_RESET" "$(yq -r '.trigger | join(" | che ")' "$file" 2>/dev/null)" ;;
+esac
 printf '%sfile%s        %s\n'        "$WF_C_BOLD" "$WF_C_RESET" "$file"
 printf '%sroot%s        %s\n'        "$WF_C_BOLD" "$WF_C_RESET" "$WF_ROOT"
 

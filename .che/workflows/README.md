@@ -11,6 +11,7 @@ See the full guide: <https://chevp.github.io/che-cli/workflow.html>
 # .che/workflows/<name>.yml
 name: <name>
 description: One-line summary
+trigger: <name>          # optional — exposes `che <name>` as a shortcut
 
 inputs:
   - name: tag
@@ -27,6 +28,7 @@ che workflow list                       # discover workflows
 che workflow show <name>                # print parsed plan
 che run <name> --tag=v1.2.3             # execute
 che run <name> --tag=v1.2.3 --dry-run   # plan only
+che <trigger> --tag=v1.2.3              # if `trigger:` is set
 ```
 
 ## Rules
@@ -37,6 +39,11 @@ che run <name> --tag=v1.2.3 --dry-run   # plan only
    should still be able to `bash scripts/foo.sh` directly.
 3. **`${input_name}` is the only substitution form.** No expressions, no
    defaults, no conditionals. Push logic into the script.
+4. **`trigger:` is optional and may shadow built-ins.** A workflow with
+   `trigger: ship` claims `che ship` for itself; the original `git ship`
+   built-in is still reachable from inside the workflow by referencing
+   `~/.local/lib/che/git/ship.sh` as a step. Multiple workflows declaring
+   the same trigger is an error — `che <trigger>` will refuse to run.
 
 ## Files here
 

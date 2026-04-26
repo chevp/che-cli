@@ -40,9 +40,14 @@ for f in "${files[@]}"; do
   base="$(basename "$f")"
   name="${base%.*}"
   desc="$(wf_yq '.description' "$f")"
-  if [ -n "$desc" ]; then
-    printf '  %s%s%s — %s\n' "$WF_C_BOLD" "$name" "$WF_C_RESET" "$desc"
-  else
-    printf '  %s%s%s\n' "$WF_C_BOLD" "$name" "$WF_C_RESET"
-  fi
+  trig_kind="$(wf_yq '.trigger | tag' "$f")"
+  trig=""
+  case "$trig_kind" in
+    '!!str') trig="$(wf_yq '.trigger' "$f")" ;;
+    '!!seq') trig="$(yq -r '.trigger | join(" | che ")' "$f" 2>/dev/null || true)" ;;
+  esac
+  line="  ${WF_C_BOLD}${name}${WF_C_RESET}"
+  [ -n "$desc" ] && line+=" — $desc"
+  [ -n "$trig" ] && line+="  ${WF_C_DIM}(che ${trig})${WF_C_RESET}"
+  printf '%s\n' "$line"
 done

@@ -142,6 +142,57 @@ wf_input_names() {
   done
 }
 
+# Look up a workflow by its declared `trigger:` (string or list-of-strings).
+# On a unique match, sets WF_ROOT / WF_DIR / WF_FILE and prints the workflow's
+# filename stem. Returns:
+#   0 — single match (output usable as `che run <stem>`)
+#   1 — no match, no workflows dir, or yq unavailable (silent)
+#   2 — multiple workflows declare the same trigger (diagnostic on stderr)
+#
+# Unlike most helpers here, this never calls wf_die — the dispatcher uses it
+# as a soft probe before falling through to built-ins.
+wf_resolve_trigger() {
+  local trig="$1"
+  [ -n "$trig" ] || return 1
+  command -v yq >/dev/null 2>&1 || return 1
+  wf_find_dir || return 1
+
+  local f kind n i t matches=()
+  shopt -s nullglob
+  for f in "$WF_DIR"/*.yml "$WF_DIR"/*.yaml; do
+    kind="$(yq -r '.trigger | tag' "$f" 2>/dev/null || true)"
+    case "$kind" in
+      '!!str')
+        t="$(yq -r '.trigger' "$f" 2>/dev/null || true)"
+        [ "$t" = "$trig" ] && matches+=("$f")
+        ;;
+      '!!seq')
+        n="$(yq -r '.trigger | length' "$f" 2>/dev/null || echo 0)"
+        for ((i = 0; i < ${n:-0}; i++)); do
+          t="$(yq -r ".trigger[$i]" "$f" 2>/dev/null || true)"
+          if [ "$t" = "$trig" ]; then matches+=("$f"); break; fi
+        done
+        ;;
+    esac
+  done
+  shopt -u nullglob
+
+  case "${#matches[@]}" in
+    0) return 1 ;;
+    1)
+      WF_FILE="${matches[0]}"
+      local base; base="$(basename "$WF_FILE")"
+      printf '%s' "${base%.*}"
+      return 0
+      ;;
+    *)
+      echo "che: trigger '$trig' is declared by multiple workflows:" >&2
+      for f in "${matches[@]}"; do echo "  - $f" >&2; done
+      return 2
+      ;;
+  esac
+}
+
 # Print "1" if the named input is required, "0" otherwise.
 wf_input_required() {
   local file="$1" name="$2"
