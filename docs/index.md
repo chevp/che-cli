@@ -11,6 +11,7 @@ script in `lib/che/<topic>/`, add a case arm in `bin/che`, done.
 > **Source:** [github.com/chevp/che-cli](https://github.com/chevp/che-cli)
 >
 > **Pages:** [installation](./installation.md) ·
+> [workflows](./workflow.md) ·
 > [architecture](./architecture.md) ·
 > [troubleshooting](./troubleshooting.md)
 
@@ -61,6 +62,21 @@ without going through the CLI.
 For local Ollama setup, see the companion guide:
 **[cura-llm-local](https://chevp.github.io/cura-llm-local/)**.
 
+### `che run` / `che workflow`
+
+Runs a YAML pipeline of shell-script steps from `.che/workflows/<name>.yml`.
+The workflow file declares order, args, and inputs — *never inline bash* —
+so your existing `scripts/` stay executable on their own.
+
+```sh
+che workflow list                       # discover workflows in this repo
+che workflow show <name>                # print parsed step plan
+che run <name> --tag=v1.2.3             # execute (alias: che workflow run)
+che run <name> --tag=v1.2.3 --dry-run   # plan only
+```
+
+Full guide: **[workflows](./workflow.md)**.
+
 ### `che doctor`
 
 Verifies dependencies and providers, with platform-aware install hints.
@@ -70,6 +86,7 @@ che doctor               # all checks
 che doctor provider      # only the active provider
 che doctor ollama        # ollama install + reachability + model
 che doctor docker        # docker install + daemon running
+che doctor workflow      # yq for che workflow / che run
 ```
 
 ---
@@ -86,6 +103,8 @@ lib/che/
   openai/     check.sh, client.sh           "
   anthropic/  check.sh, client.sh           "
   docker/     check.sh, client.sh
+  workflow/   check.sh, loader.sh, list.sh, show.sh, run.sh
+  workflow.sh                   `che workflow` sub-dispatcher
   doctor.sh                     `che doctor` — runs all checks
 ```
 

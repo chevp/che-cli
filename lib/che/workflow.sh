@@ -6,7 +6,7 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<EOF
-che workflow — manage and run scripted workflows from .che/workflow/*.yml
+che workflow — manage and run scripted workflows from .che/workflows/*.yml
 
 Usage: che workflow <subcommand> [args]
 
@@ -19,7 +19,8 @@ A workflow is a YAML manifest that references existing scripts. Each step
 declares 'script:' (an executable path relative to the workflow root) and
 optional 'args:' with \${input} substitution. No inline bash.
 
-See: che doctor workflow   (verifies yq is installed)
+Docs:    https://chevp.github.io/che-cli/workflow.html
+Doctor:  che doctor workflow   (verifies yq is installed)
 EOF
 }
 

@@ -20,7 +20,7 @@ Most repos already mix three dispatch layers — `package.json` scripts, a
 flavours. Each layer answers a different kind of question, and none of them
 makes the **build → test → deploy pipeline** discoverable.
 
-`.che/workflow/` is that missing layer. It mirrors `.github/workflows/` so
+`.che/workflows/` is that missing layer. It mirrors `.github/workflows/` so
 intent is obvious — *this is a pipeline, run with `che`* — but it stays
 local: no runner, no minutes, no commit required to iterate.
 
@@ -33,7 +33,7 @@ The workflow files reference your existing scripts. They don't replace them.
 ```
 <repo>/
 ├── .che/
-│   └── workflow/
+│   └── workflows/
 │       ├── release-desktop.yml
 │       ├── deploy-installers.yml
 │       └── demo.yml
@@ -44,7 +44,7 @@ The workflow files reference your existing scripts. They don't replace them.
         └── deploy-cyon-installers.sh
 ```
 
-`che` walks up from `$PWD` looking for `.che/workflow/`, so workflows can be
+`che` walks up from `$PWD` looking for `.che/workflows/`, so workflows can be
 invoked from anywhere inside the repo.
 
 ---
@@ -127,7 +127,7 @@ will actually execute, with the input slots still as `${...}` placeholders.
 $ che workflow show release-desktop
 name        release-desktop
 description Build mac + windows installers and publish a GitHub release
-file        /Users/me/cura/.che/workflow/release-desktop.yml
+file        /Users/me/cura/.che/workflows/release-desktop.yml
 root        /Users/me/cura
 
 inputs

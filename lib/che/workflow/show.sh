@@ -14,6 +14,8 @@ Usage: che workflow show <name>
 
 Validates the file shape, then prints name, description, declared inputs,
 and each step as it would be executed.
+
+Docs: https://chevp.github.io/che-cli/workflow.html
 EOF
     [ -z "${1:-}" ] && exit 1 || exit 0
     ;;
@@ -23,7 +25,8 @@ name="$1"; shift || true
 [ "$#" -eq 0 ] || wf_die "show: unexpected extra arguments"
 
 wf_require_yq
-file="$(wf_resolve_file "$name")"
+wf_resolve_file "$name"
+file="$WF_FILE"
 wf_validate "$file"
 
 printf '%sname%s        %s\n'        "$WF_C_BOLD" "$WF_C_RESET" "$(wf_yq '.name' "$file")"

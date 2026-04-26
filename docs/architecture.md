@@ -38,6 +38,13 @@ lib/che/
   docker/
     check.sh
     client.sh
+  workflow.sh                sub-dispatcher: list / show / run
+  workflow/
+    check.sh                 verifies yq (mikefarah Go variant)
+    loader.sh                shared parsing + ${input} substitution
+    list.sh                  che workflow list
+    show.sh                  che workflow show <name>
+    run.sh                   che workflow run <name>  /  che run <name>
 ```
 
 Every provider folder follows the same convention:

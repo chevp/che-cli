@@ -24,6 +24,8 @@ the run before any step starts.
 Options:
   --dry-run    print the step plan with substituted args; do not exec
   -h, --help   show this help
+
+Docs: https://chevp.github.io/che-cli/workflow.html
 EOF
 }
 
@@ -59,7 +61,8 @@ done
 [ -n "$name" ] || { usage >&2; exit 1; }
 
 wf_require_yq
-file="$(wf_resolve_file "$name")"
+wf_resolve_file "$name"
+file="$WF_FILE"
 wf_validate "$file"
 
 # Verify required inputs are present.

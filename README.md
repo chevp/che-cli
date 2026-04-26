@@ -103,6 +103,26 @@ API keys come from `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` — see
 If you don't have a local LLM running yet, follow
 [cura-llm-local](https://chevp.github.io/cura-llm-local/) — about five minutes.
 
+### `che run` / `che workflow` — local pipelines
+
+Runs a YAML manifest of shell-script steps from `.che/workflows/<name>.yml`.
+The workflow file is a **pointer** — it declares order, args, and inputs but
+contains no inline bash, so your existing `scripts/` stay executable on their
+own. Mirrors `.github/workflows/` for local pipelines.
+
+```sh
+che workflow list                       # discover workflows in this repo
+che workflow show <name>                # print parsed step plan
+che run <name> --tag=v1.2.3             # execute (alias: che workflow run)
+che run <name> --tag=v1.2.3 --dry-run   # plan only
+```
+
+A copy-paste template lives at [`.che/workflows/example.yml`](.che/workflows/example.yml).
+Full guide: [chevp.github.io/che-cli/workflow.html](https://chevp.github.io/che-cli/workflow.html).
+
+Requires [`yq`](https://github.com/mikefarah/yq) (the mikefarah Go binary).
+Run `che doctor workflow` to check.
+
 ### `che doctor` — health check
 
 Verifies dependencies and providers. Platform-aware install hints (different

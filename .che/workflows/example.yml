@@ -1,0 +1,36 @@
+# Template: a normalized che workflow.
+#
+# Copy this file into your own repo at <repo>/.che/workflows/<name>.yml,
+# then edit. Run with:  che run <name>  (or: che workflow run <name>)
+#
+# Rules:
+#   - Each step references an existing executable script via 'script:'.
+#     No inline bash. The actual logic stays in your scripts/ tree.
+#   - 'args:' entries are shell-substituted for ${input} placeholders.
+#   - Steps run sequentially with the workflow root (the folder containing
+#     .che/) as $PWD. The first failing step aborts the run.
+#
+# Docs: https://chevp.github.io/che-cli/workflow.html
+
+name: example
+description: Template workflow — replace with what your pipeline actually does
+
+inputs:
+  - name: tag
+    required: true
+    description: Release tag, e.g. v1.2.3
+  - name: channel
+    required: false
+    description: Optional release channel (stable | beta)
+
+steps:
+  - name: Build
+    script: scripts/build.sh
+    args: ["--tag", "${tag}"]
+
+  - name: Test
+    script: scripts/test.sh
+
+  - name: Publish
+    script: scripts/publish.sh
+    args: ["--tag", "${tag}", "--channel", "${channel}"]

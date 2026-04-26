@@ -12,8 +12,10 @@ che workflow list — print all workflows in this repo.
 
 Usage: che workflow list
 
-Discovers .che/workflow/ by walking up from \$PWD and lists every *.yml /
+Discovers .che/workflows/ by walking up from \$PWD and lists every *.yml /
 *.yaml file inside, with its declared description.
+
+Docs: https://chevp.github.io/che-cli/workflow.html
 EOF
     exit 0
     ;;

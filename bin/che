@@ -17,15 +17,18 @@ Commands:
                       in flow mode: push -u + open/update draft PR
   flow <branch>       start a flow branch (pull base, checkout new, mark repo)
   done                finish active flow: gh pr merge --squash --auto, back to base
-  run <name>          execute a workflow from .che/workflow/<name>.yml
+  run <name>          execute a workflow from .che/workflows/<name>.yml
                       (alias for: che workflow run <name>)
-  workflow <sub>      list / show / run workflows from .che/workflow/
+  workflow <sub>      list / show / run workflows from .che/workflows/
   status              git status + che-cli config (provider, model, env)
   doctor [target]     verify deps and providers (git, gh, docker, ollama, openai,
                       anthropic, workflow)
   help                show this message
 
 Run 'che <command> --help' for command-specific options.
+
+Docs: https://chevp.github.io/che-cli/
+  · workflows: https://chevp.github.io/che-cli/workflow.html
 EOF
 }
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Shared helpers for `che workflow` commands.
 #
-# A workflow is a YAML file under `<repo>/.che/workflow/<name>.yml` with this
-# normalized shape:
+# A workflow is a YAML file under `<repo>/.che/workflows/<name>.yml` with this
+# normalized shape (see docs/workflow.md):
 #
 #   name: release-desktop
 #   description: Build mac + windows installers, publish GitHub release
@@ -34,14 +34,20 @@ fi
 
 wf_die() { echo "che workflow: $*" >&2; exit 1; }
 
-# Locate the .che/workflow directory by walking up from $PWD. Sets globals
-# WF_ROOT (folder containing .che/) and WF_DIR (.che/workflow inside it).
+# Locate the .che/workflows directory by walking up from $PWD.
+# Sets globals (must NOT be called inside $(…) — that subshell loses them):
+#   WF_ROOT — folder containing .che/
+#   WF_DIR  — .che/workflows inside it
+WF_ROOT=""
+WF_DIR=""
+WF_FILE=""
+
 wf_find_dir() {
   local dir="$PWD"
   while [ "$dir" != "/" ] && [ -n "$dir" ]; do
-    if [ -d "$dir/.che/workflow" ]; then
+    if [ -d "$dir/.che/workflows" ]; then
       WF_ROOT="$dir"
-      WF_DIR="$dir/.che/workflow"
+      WF_DIR="$dir/.che/workflows"
       return 0
     fi
     dir="$(dirname "$dir")"
@@ -49,14 +55,16 @@ wf_find_dir() {
   return 1
 }
 
-# Resolve a workflow name to a .yml/.yaml file path. Echoes the absolute path.
+# Resolve a workflow name; sets WF_FILE (alongside WF_ROOT/WF_DIR from
+# wf_find_dir). Call directly — do NOT wrap in $().
 wf_resolve_file() {
   local name="$1"
   [ -n "$name" ] || wf_die "missing workflow name"
-  wf_find_dir || wf_die "no .che/workflow/ found above $PWD"
+  wf_find_dir || wf_die "no .che/workflows/ found above $PWD"
+  local ext
   for ext in yml yaml; do
     if [ -f "$WF_DIR/$name.$ext" ]; then
-      printf '%s\n' "$WF_DIR/$name.$ext"
+      WF_FILE="$WF_DIR/$name.$ext"
       return 0
     fi
   done
