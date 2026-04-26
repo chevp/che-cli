@@ -4,6 +4,7 @@ set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$LIB_DIR/provider.sh"
+. "$LIB_DIR/ui.sh"
 provider_load
 
 MAX_DIFF_CHARS="${CHE_MAX_DIFF_CHARS:-8000}"
@@ -73,12 +74,22 @@ if [ "${#diff}" -gt "$MAX_DIFF_CHARS" ]; then
 fi
 
 read -r -d '' prompt <<EOF || true
-You are generating a single git commit message from a diff.
+You are generating a git commit message from a diff.
+
+Format:
+<title>
+<blank line>
+- <important point>
+- <important point>
+- <important point>
 
 Rules:
 - Reply with ONLY the commit message. No quotes, no explanation, no preamble.
-- One line, max 72 characters, imperative mood (e.g. "add", "fix", "refactor").
-- If multiple unrelated changes, summarize the dominant one.
+- Title: one line, max 72 characters, imperative mood (e.g. "add", "fix", "refactor").
+- Body: 2-5 bullets, each starting with "- ", describing the important changes.
+- Each bullet should be concise (max ~100 characters) and focus on what changed and why.
+- Skip the body only if the change is trivial (e.g. typo fix, single-line tweak).
+- If multiple unrelated changes, the title summarizes the dominant one; bullets cover the rest.
 
 Diff:
 $diff
@@ -90,20 +101,47 @@ if ! provider_ping; then
   exit 1
 fi
 
-raw="$(provider_generate "$prompt")" || {
+out_tmp="$(mktemp)"
+err_tmp="$(mktemp)"
+trap 'rm -f "$out_tmp" "$err_tmp"' EXIT
+
+provider_generate "$prompt" >"$out_tmp" 2>"$err_tmp" &
+gen_pid=$!
+
+if ! ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model))"; then
+  [ -s "$err_tmp" ] && cat "$err_tmp" >&2
   echo "che commit: provider '$(provider_active)' request failed" >&2
   exit 1
-}
+fi
 
-msg="$(printf '%s' "$raw" | head -n 1 \
-  | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//; s/^["'"'"']//; s/["'"'"']$//')"
+raw="$(cat "$out_tmp")"
 
-if [ -z "$msg" ]; then
+# Trim leading/trailing blank lines and surrounding quotes on the title line.
+msg="$(printf '%s\n' "$raw" | awk '
+  NF && !seen { seen=1 }
+  seen { buf[++n]=$0 }
+  END {
+    while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--
+    for (i=1; i<=n; i++) print buf[i]
+  }
+' | awk 'NR==1 {
+  sub(/^[[:space:]]+/, "")
+  sub(/^["'"'"']/, ""); sub(/["'"'"']$/, "")
+} { print }')"
+
+title="$(printf '%s\n' "$msg" | head -n 1)"
+
+if [ -z "$title" ]; then
   echo "che commit: LLM returned empty message" >&2
   exit 1
 fi
 
-printf '\n→ %s\n\n' "$msg"
+printf '\n→ %s\n' "$title"
+body="$(printf '%s\n' "$msg" | awk 'NR>1 && (NF || printed) { printed=1; print }')"
+if [ -n "$body" ]; then
+  printf '%s\n' "$body" | awk '{ print "  " $0 }'
+fi
+printf '\n'
 
 if $dry; then
   exit 0
@@ -118,10 +156,14 @@ if ! $yes && ! $edit; then
   esac
 fi
 
+msg_file="$(mktemp)"
+trap 'rm -f "$out_tmp" "$err_tmp" "$msg_file"' EXIT
+printf '%s\n' "$msg" >"$msg_file"
+
 if $edit; then
-  git commit -em "$msg"
+  git commit -e -F "$msg_file"
 else
-  git commit -m "$msg"
+  git commit -F "$msg_file"
 fi
 
 if $push; then

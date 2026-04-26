@@ -12,7 +12,8 @@ Usage: che <command> [args]
 
 Commands:
   commit              stage all + AI-generated commit message (+ optional push)
-  ship                shortcut for 'commit --push --yes' (add + commit + push)
+  ship                add + commit + push, recursively into submodules
+                      (init missing submodules, ff-pull on a branch)
   doctor [target]     verify deps and providers (git, docker, ollama, openai, anthropic)
   help                show this message
 
@@ -25,7 +26,7 @@ cmd="${1:-help}"
 
 case "$cmd" in
   commit)         exec bash "$CHE_LIB_DIR/git/commit.sh" "$@" ;;
-  ship)           exec bash "$CHE_LIB_DIR/git/commit.sh" --push --yes "$@" ;;
+  ship)           exec bash "$CHE_LIB_DIR/git/ship.sh"   "$@" ;;
   doctor)         exec bash "$CHE_LIB_DIR/doctor.sh"     "$@" ;;
   help|-h|--help) usage ;;
   *)

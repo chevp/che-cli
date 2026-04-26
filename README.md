@@ -35,8 +35,10 @@ This installs:
 - `~/.local/bin/che`              — the dispatcher
 - `~/.local/lib/che/`              — full subcommand tree
 
-Override the prefix with `PREFIX=/usr/local ./install.sh`. Make sure the bin
-directory is on your `PATH`.
+Override the prefix with `PREFIX=/usr/local ./install.sh`. If `~/.local/bin`
+is not already on your `PATH`, the installer appends an `export PATH=...` line
+to your shell rc (`~/.zshrc` or `~/.bash_profile`/`~/.bashrc`) — open a new
+terminal afterwards. Pass `CHE_NO_PATH_EDIT=1` to opt out.
 
 After installing, run **`che doctor`** to verify everything works.
 
@@ -59,13 +61,19 @@ che commit --edit       # open $EDITOR with the message pre-filled
 che commit --yes        # skip the confirmation prompt
 ```
 
-### `che ship` — add + commit + push, no prompts
+### `che ship` — recursive add + commit + push
 
-Shortcut for `che commit --push --yes`: stages everything, generates the
-commit message, commits, and pushes — without asking for confirmation.
+For the current repo **and every submodule** (depth-first, recursively):
+
+1. Initializes any uninitialized submodules (`submodule update --init`).
+2. Fast-forward pulls if HEAD is on a branch (skipped if detached).
+3. Runs `che commit --push --yes` — stage, AI-message, commit, push.
+
+Submodules are processed before the parent so the parent's pointer-update
+commit references already-pushed children.
 
 ```sh
-che ship                # one-shot add + commit + push
+che ship                # one-shot recursive add + commit + push
 ```
 
 Provider is selected via `CHE_PROVIDER`:

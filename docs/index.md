@@ -108,3 +108,11 @@ drop a folder, implement those three functions, register it in `provider.sh`.
 - `che explain` — summarize what a file or diff does
 - `che review` — local LLM code review on staged changes
 - `che branch` — name a new branch from a short intent description
+
+---
+
+© 2025 Patrice Chevillat ·
+[Terms](https://chevp.github.io/site-policy/terms.html) ·
+[Privacy](https://chevp.github.io/site-policy/privacy.html) ·
+[Impressum](https://chevp.github.io/site-policy/impressum.html) ·
+[Contact](https://chevp.github.io/site-policy/contact.html)
