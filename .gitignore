@@ -1,0 +1,5 @@
+.env
+.env.local
+http-client.private.env.json
+.idea/httpRequests/
+.DS_Store

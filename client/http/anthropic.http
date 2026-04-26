@@ -1,0 +1,63 @@
+### Anthropic — Cloud-LLM-Provider (siehe ADR-005 §Entscheidung „LLM-Provider-Abstraktion")
+### Verwendung: VS Code REST Client / IntelliJ HTTP Client / JetBrains Fleet
+### API-Key: VS Code → ANTHROPIC_API_KEY in .env (siehe .env.example),
+### IntelliJ/Fleet → in http-client.private.env.json (gitignored).
+
+@host = https://api.anthropic.com/v1
+@apiKey = {{$dotenv ANTHROPIC_API_KEY}}
+@anthropicVersion = 2023-06-01
+@model = claude-sonnet-4-6
+
+### Liste aller verfügbaren Modelle (analog Ollama /api/tags, OpenAI /models)
+GET {{host}}/models
+x-api-key: {{apiKey}}
+anthropic-version: {{anthropicVersion}}
+
+### Modell-Details abfragen
+GET {{host}}/models/{{model}}
+x-api-key: {{apiKey}}
+anthropic-version: {{anthropicVersion}}
+
+### Messages (Chat, nicht-streaming)
+POST {{host}}/messages
+x-api-key: {{apiKey}}
+anthropic-version: {{anthropicVersion}}
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "max_tokens": 1024,
+  "stream": false,
+  "messages": [
+    { "role": "user", "content": "Was ist die Hauptstadt von Deutschland?" }
+  ]
+}
+
+### Messages mit System-Prompt (typischer Cura-Aufruf — System ist Top-Level, nicht in messages)
+POST {{host}}/messages
+x-api-key: {{apiKey}}
+anthropic-version: {{anthropicVersion}}
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "max_tokens": 1024,
+  "stream": false,
+  "system": "Du bist ein Pflege-Assistent. Antworte präzise auf Deutsch.",
+  "messages": [
+    { "role": "user", "content": "Sag Hallo auf Deutsch." }
+  ]
+}
+
+### Token-Count vorab abfragen (kein API-Call an das Modell, nur Counting)
+POST {{host}}/messages/count_tokens
+x-api-key: {{apiKey}}
+anthropic-version: {{anthropicVersion}}
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "messages": [
+    { "role": "user", "content": "Wie viele Tokens hat dieser Satz?" }
+  ]
+}

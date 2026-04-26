@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+CHE_BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHE_LIB_DIR="${CHE_LIB_DIR:-$CHE_BIN_DIR/../lib/che}"
+
+usage() {
+  cat <<EOF
+che — collection of small CLI utilities
+
+Usage: che <command> [args]
+
+Commands:
+  commit              stage all + AI-generated commit message (+ optional push)
+  doctor [target]     verify deps and providers (git, docker, ollama, openai, anthropic)
+  help                show this message
+
+Run 'che <command> --help' for command-specific options.
+EOF
+}
+
+cmd="${1:-help}"
+[ "$#" -gt 0 ] && shift || true
+
+case "$cmd" in
+  commit)         exec bash "$CHE_LIB_DIR/git/commit.sh" "$@" ;;
+  doctor)         exec bash "$CHE_LIB_DIR/doctor.sh"     "$@" ;;
+  help|-h|--help) usage ;;
+  *)
+    echo "che: unknown command '$cmd'" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

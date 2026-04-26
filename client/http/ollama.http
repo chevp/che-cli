@@ -1,0 +1,46 @@
+### Ollama — lokaler LLM-Provider (siehe ADR-005 §Entscheidung „LLM-Provider-Abstraktion")
+### Verwendung: VS Code REST Client / IntelliJ HTTP Client / JetBrains Fleet
+### Voraussetzung: `ollama serve` läuft auf 11434 (Default)
+
+@host = http://localhost:11434
+@model = llama3.2
+
+### Health check — sollte 200 OK + "Ollama is running" zurückgeben
+GET {{host}}/
+
+### Liste aller installierten Modelle
+GET {{host}}/api/tags
+
+### Version abfragen
+GET {{host}}/api/version
+
+### Prompt an ein Modell schicken (nicht-streaming)
+POST {{host}}/api/generate
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "prompt": "Sag Hallo auf Deutsch.",
+  "stream": false
+}
+
+### Chat-Endpoint (nicht-streaming)
+POST {{host}}/api/chat
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "stream": false,
+  "messages": [
+    { "role": "user", "content": "Was ist die Hauptstadt von Deutschland?" }
+  ]
+}
+
+### Modell pullen (falls noch keins installiert ist)
+POST {{host}}/api/pull
+Content-Type: application/json
+
+{
+  "name": "{{model}}",
+  "stream": false
+}

@@ -1,0 +1,53 @@
+### OpenAI — Cloud-LLM-Provider (siehe ADR-005 §Entscheidung „LLM-Provider-Abstraktion")
+### Verwendung: VS Code REST Client / IntelliJ HTTP Client / JetBrains Fleet
+### API-Key: VS Code → OPENAI_API_KEY in .env (siehe .env.example),
+### IntelliJ/Fleet → in http-client.private.env.json (gitignored).
+
+@host = https://api.openai.com/v1
+@apiKey = {{$dotenv OPENAI_API_KEY}}
+@model = gpt-4o-mini
+
+### Liste aller verfügbaren Modelle (analog Ollama /api/tags)
+GET {{host}}/models
+Authorization: Bearer {{apiKey}}
+
+### Modell-Details abfragen
+GET {{host}}/models/{{model}}
+Authorization: Bearer {{apiKey}}
+
+### Chat Completion (nicht-streaming)
+POST {{host}}/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "stream": false,
+  "messages": [
+    { "role": "user", "content": "Was ist die Hauptstadt von Deutschland?" }
+  ]
+}
+
+### Chat Completion mit System-Prompt (typischer Cura-Aufruf)
+POST {{host}}/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "model": "{{model}}",
+  "stream": false,
+  "messages": [
+    { "role": "system", "content": "Du bist ein Pflege-Assistent. Antworte präzise auf Deutsch." },
+    { "role": "user", "content": "Sag Hallo auf Deutsch." }
+  ]
+}
+
+### Embeddings (für Vector-Search / Memory-Layer)
+POST {{host}}/embeddings
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "model": "text-embedding-3-small",
+  "input": "Cura ist eine Plattform für Schweizer Sozialinstitutionen."
+}
