@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # che done — finish the active che flow:
 #   gh pr merge <pr> --squash --auto --delete-branch
+#     (falls back to a direct squash merge if the repo has auto-merge disabled)
 #   git checkout <base> && git pull --ff-only && prune origin
 #   delete the .git/che-flow marker.
 set -euo pipefail
@@ -54,7 +55,21 @@ if [ "$cur" != "$branch" ]; then
 fi
 
 # --auto: gh waits for required checks to pass, then squash-merges and deletes branch.
-gh pr merge "$pr" --squash --auto --delete-branch
+# Repos with auto-merge disabled reject this with a GraphQL error
+# (enablePullRequestAutoMerge); fall back to an immediate squash merge in that case.
+err_log="$(mktemp)"
+trap 'rm -f "$err_log"' EXIT
+merge_mode="auto"
+if ! gh pr merge "$pr" --squash --auto --delete-branch 2>"$err_log"; then
+  if grep -q 'enablePullRequestAutoMerge' "$err_log"; then
+    echo "che done: auto-merge disabled on this repo — falling back to direct merge" >&2
+    gh pr merge "$pr" --squash --delete-branch
+    merge_mode="direct"
+  else
+    cat "$err_log" >&2
+    exit 1
+  fi
+fi
 
 git checkout "$base"
 git pull --ff-only
@@ -67,5 +82,9 @@ fi
 
 rm -f "$marker"
 
-printf '\n── flow done: PR #%s queued (auto-merge, squash, delete-branch) ──\n' "$pr"
+if [ "$merge_mode" = "auto" ]; then
+  printf '\n── flow done: PR #%s queued (auto-merge, squash, delete-branch) ──\n' "$pr"
+else
+  printf '\n── flow done: PR #%s merged (squash, delete-branch) ──\n' "$pr"
+fi
 printf 'back on %s\n' "$base"
