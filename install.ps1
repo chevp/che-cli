@@ -214,17 +214,31 @@ foreach ($c in @(
 )) {
     if ($c -and (Test-Path $c)) { $bash = $c; break }
 }
+$chePs1 = Join-Path $binDir 'che.ps1'
 $cheBat = Join-Path $binDir 'che.bat'
-if (Test-Path $cheBat) {
-    & $cheBat doctor 2>&1 | ForEach-Object { Write-Host $_ }
-} elseif ($bash) {
-    # Fallback: invoke the bash dispatcher directly. Use `$PATH (backtick) so
-    # PowerShell preserves the literal $PATH for bash to expand -- not \$PATH,
-    # which PowerShell does NOT treat as an escape.
-    & $bash -c "PATH='$($binDir -replace '\\','/')':`$PATH che doctor" 2>&1 | ForEach-Object { Write-Host $_ }
-} else {
-    Write-Host "  [WARN] che.bat / Git Bash not found -- skipping 'che doctor'" -ForegroundColor Yellow
-    Write-Host "         install Git for Windows, then run: che doctor" -ForegroundColor DarkGray
+# Verification is best-effort. If we got here, files were copied successfully;
+# `che doctor` running under multiple nested shells (powershell -> bat ->
+# powershell -> bash) sometimes mangles arg forwarding in ways that don't
+# affect normal use. Wrap in try/catch and downgrade failures to a hint.
+$verified = $false
+try {
+    if (Test-Path $chePs1) {
+        # Direct .ps1 call: skips the .bat -> powershell.exe re-entry that
+        # is the source of most arg-forwarding glitches during install.
+        & $chePs1 doctor 2>&1 | ForEach-Object { Write-Host $_ }
+        $verified = $true
+    } elseif ($bash) {
+        # Fallback: invoke the bash dispatcher directly. Use `$PATH (backtick)
+        # so PowerShell preserves the literal $PATH for bash to expand -- not
+        # \$PATH, which PowerShell does NOT treat as an escape.
+        & $bash -c "PATH='$($binDir -replace '\\','/')':`$PATH che doctor" 2>&1 | ForEach-Object { Write-Host $_ }
+        $verified = $true
+    }
+} catch {
+    Write-Host "  [WARN] verification step errored: $($_.Exception.Message)" -ForegroundColor Yellow
+}
+if (-not $verified) {
+    Write-Host "  [INFO] verification skipped -- run 'che doctor' manually after opening a new terminal" -ForegroundColor DarkGray
 }
 
 Write-Host ""
