@@ -13,7 +13,10 @@ type info >/dev/null 2>&1 || info() { printf "    %s\n" "$1"; }
 docker_install_hint() {
   case "$CHE_OS" in
     darwin)    info "install: brew install --cask docker" ;;
-    windows)   info "install: https://www.docker.com/products/docker-desktop/" ;;
+    windows)
+      info "install: re-run the che-cli installer with the 'Docker Desktop' task checked"
+      info "         (or: winget install Docker.DockerDesktop / https://www.docker.com/products/docker-desktop/)"
+      ;;
     wsl|linux) info "install: https://docs.docker.com/engine/install/" ;;
     *)         info "install: https://www.docker.com/get-started/" ;;
   esac

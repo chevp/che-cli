@@ -10,6 +10,8 @@
 #   .\install.ps1 -NoDeps           # skip OS-level installs
 #   .\install.ps1 -NoOllama         # don't touch ollama
 #   .\install.ps1 -NoModel          # install ollama but skip model pull
+#   .\install.ps1 -WithDocker       # also install Docker Desktop (heavy, may need reboot)
+#   .\install.ps1 -NoAutostart      # skip Startup-folder autostart wiring
 #   .\install.ps1 -Prefix "C:\path" # custom install prefix
 #   $env:PREFIX = "..."; .\install.ps1
 #
@@ -22,7 +24,9 @@ param(
     [switch]$AssumeYes,
     [switch]$NoDeps,
     [switch]$NoOllama,
-    [switch]$NoModel
+    [switch]$NoModel,
+    [switch]$WithDocker,
+    [switch]$NoAutostart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -162,10 +166,12 @@ Write-Host "  [OK]   lib/che/.installed-version" -ForegroundColor Green
 $depsScript = Join-Path $src 'installer\lib\install-deps.ps1'
 if (Test-Path $depsScript) {
     $depsArgs = @('-Model', $Model)
-    if ($AssumeYes) { $depsArgs += '-AssumeYes' }
-    if ($NoDeps)    { $depsArgs += '-NoDeps' }
-    if ($NoOllama)  { $depsArgs += '-NoOllama' }
-    if ($NoModel)   { $depsArgs += '-NoModel' }
+    if ($AssumeYes)   { $depsArgs += '-AssumeYes' }
+    if ($NoDeps)      { $depsArgs += '-NoDeps' }
+    if ($NoOllama)    { $depsArgs += '-NoOllama' }
+    if ($NoModel)     { $depsArgs += '-NoModel' }
+    if ($WithDocker)  { $depsArgs += '-WithDocker' }
+    if ($NoAutostart) { $depsArgs += '-NoAutostart' }
 
     # Re-launch in a child PowerShell so $ErrorActionPreference and exit codes
     # don't bleed back into this installer.

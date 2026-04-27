@@ -51,6 +51,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "modifypath";  Description: "Add che to PATH (recommended)"; GroupDescription: "Environment:"
 Name: "installdeps"; Description: "Install missing dependencies (Git for Windows, Python 3, Ollama)"; GroupDescription: "Dependencies:"
 Name: "installdeps\pullmodel"; Description: "Also pull the default Ollama model (llama3.2 — several GB)"; GroupDescription: "Dependencies:"; Flags: unchecked
+Name: "installdeps\docker";    Description: "Also install Docker Desktop (multi-GB, may require reboot for WSL2)"; GroupDescription: "Dependencies:"; Flags: unchecked
 
 [Files]
 ; Dispatcher and library tree
@@ -73,13 +74,14 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
 ; Install missing deps in a VISIBLE console so the user can see winget /
-; ollama progress. {code:GetDepsArgs} adds -NoModel unless the "pullmodel"
-; sub-task is checked. We deliberately do NOT use 'runhidden' here -- winget
-; and 'ollama pull' both print non-newline progress that blocks any pipe;
-; letting the console show through is the most reliable UX.
+; ollama / docker progress. {code:GetDepsArgs} composes -NoModel /
+; -WithDocker based on the sub-task checkboxes. We deliberately do NOT use
+; 'runhidden' here -- winget and 'ollama pull' both print non-newline
+; progress that blocks any pipe; letting the console show through is the
+; most reliable UX.
 Filename: "powershell.exe"; \
   Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer\lib\install-deps.ps1"" {code:GetDepsArgs}"; \
-  StatusMsg: "Installing dependencies (Git, Python, Ollama) -- see console window..."; \
+  StatusMsg: "Installing dependencies (Git, Python, Ollama, optional Docker) -- see console window..."; \
   Flags: waituntilterminated; \
   Tasks: installdeps
 
@@ -188,10 +190,13 @@ end;
 function GetDepsArgs(Param: String): String;
 begin
   // install-deps.ps1 args: always -AssumeYes (silent install context);
-  // add -NoModel unless the "pullmodel" sub-task is checked.
+  // add -NoModel unless the "pullmodel" sub-task is checked, and -WithDocker
+  // when the "docker" sub-task is checked.
   Result := '-AssumeYes';
   if not WizardIsTaskSelected('installdeps\pullmodel') then
     Result := Result + ' -NoModel';
+  if WizardIsTaskSelected('installdeps\docker') then
+    Result := Result + ' -WithDocker';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

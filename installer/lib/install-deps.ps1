@@ -11,6 +11,8 @@
 #   .\install-deps.ps1 -NoDeps        # skip OS package installs
 #   .\install-deps.ps1 -NoOllama      # skip ollama altogether
 #   .\install-deps.ps1 -NoModel       # install ollama but skip model pull
+#   .\install-deps.ps1 -WithDocker    # also install Docker Desktop (heavy, may need reboot)
+#   .\install-deps.ps1 -NoAutostart   # skip Startup-folder autostart wiring
 #   .\install-deps.ps1 -Model llama3  # override default model
 
 [CmdletBinding()]
@@ -19,15 +21,19 @@ param(
     [switch]$NoDeps,
     [switch]$NoOllama,
     [switch]$NoModel,
+    [switch]$WithDocker,
+    [switch]$NoAutostart,
     [string]$Model = $(if ($env:CHE_OLLAMA_MODEL) { $env:CHE_OLLAMA_MODEL } else { 'llama3.2' }),
     [string]$OllamaHost = $(if ($env:CHE_OLLAMA_HOST) { $env:CHE_OLLAMA_HOST } else { 'http://localhost:11434' })
 )
 
 # Env-var overrides (so the Inno Setup [Run] step can pass flags via env).
-if ($env:CHE_ASSUME_YES -eq '1') { $AssumeYes = $true }
-if ($env:CHE_NO_DEPS    -eq '1') { $NoDeps    = $true }
-if ($env:CHE_NO_OLLAMA  -eq '1') { $NoOllama  = $true }
-if ($env:CHE_NO_MODEL   -eq '1') { $NoModel   = $true }
+if ($env:CHE_ASSUME_YES   -eq '1') { $AssumeYes   = $true }
+if ($env:CHE_NO_DEPS      -eq '1') { $NoDeps      = $true }
+if ($env:CHE_NO_OLLAMA    -eq '1') { $NoOllama    = $true }
+if ($env:CHE_NO_MODEL     -eq '1') { $NoModel     = $true }
+if ($env:CHE_WITH_DOCKER  -eq '1') { $WithDocker  = $true }
+if ($env:CHE_NO_AUTOSTART -eq '1') { $NoAutostart = $true }
 
 $ErrorActionPreference = 'Continue'
 
@@ -360,17 +366,181 @@ function Ensure-Ollama {
 }
 
 # ---------------------------------------------------------------------------
+# Docker Desktop
+# ---------------------------------------------------------------------------
+function Find-DockerDesktop {
+    foreach ($p in @(
+        "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+        "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
+    )) {
+        if (Test-Path $p) { return $p }
+    }
+    return $null
+}
+
+function Test-DockerDaemon {
+    if (-not (Test-Command 'docker')) { return $false }
+    & docker info *> $null
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Start-DockerDesktop {
+    if (Test-DockerDaemon) {
+        Write-Ok "docker daemon already running"
+        return $true
+    }
+    $exe = Find-DockerDesktop
+    if (-not $exe) {
+        Write-Fail "Docker Desktop.exe not found -- can't auto-start"
+        return $false
+    }
+    Write-Info "launching Docker Desktop (daemon takes ~30s to come up)..."
+    try {
+        Start-Process -FilePath $exe | Out-Null
+    } catch {
+        Write-Fail "could not launch Docker Desktop: $($_.Exception.Message)"
+        return $false
+    }
+    # Give it up to 90s; first launch is slow.
+    for ($i = 0; $i -lt 45; $i++) {
+        Start-Sleep -Seconds 2
+        if (Test-DockerDaemon) {
+            Write-Ok "docker daemon is up"
+            return $true
+        }
+    }
+    Write-Warn "docker daemon didn't respond within 90s -- it may still be starting"
+    Write-Info "check the Docker Desktop tray icon, then re-run 'che doctor docker'"
+    return $false
+}
+
+function Ensure-Docker {
+    # Docker is opt-in: it's a heavy install and may require a reboot for WSL2.
+    if (-not $WithDocker) {
+        Write-Info "skipping docker setup (-WithDocker not set)"
+        return $true
+    }
+    Write-Step "Docker Desktop (optional -- needed for che doctor docker / container workflows)"
+
+    if (Test-Command 'docker') {
+        $ver = (& docker --version 2>$null) -replace '^Docker version\s+',''
+        Write-Ok "docker CLI present ($ver)"
+    } else {
+        if ($NoDeps) { Write-Warn "docker missing (skipped: -NoDeps)"; return $false }
+        if (-not (Confirm-Action "install Docker Desktop via winget? (multi-GB; may require reboot for WSL2)")) {
+            Write-Warn "skipped Docker install"
+            return $false
+        }
+        # Docker Desktop is machine-scope only (drivers + WSL2 integration).
+        if (-not (Install-Winget-Pkg -Id 'Docker.DockerDesktop' -Name 'Docker Desktop' -AllowMachineScope)) {
+            Write-Fail "Docker Desktop install failed"
+            Write-Info "if winget reports WSL2 missing, run 'wsl --install' (requires reboot) and re-run this installer"
+            return $false
+        }
+        Refresh-Path
+        if (-not (Test-Command 'docker')) {
+            Write-Warn "docker installed but not yet on PATH -- a reboot is usually required"
+            Write-Info "after reboot, run 'che doctor docker' to verify"
+            return $false
+        }
+    }
+
+    # Try to start the daemon. Failure here is non-fatal -- the user may need
+    # to reboot first (Docker Desktop's WSL2 backend depends on a reboot when
+    # WSL2 was just installed).
+    Start-DockerDesktop | Out-Null
+    return $true
+}
+
+# ---------------------------------------------------------------------------
+# Autostart wiring
+# ---------------------------------------------------------------------------
+function New-StartupShortcut {
+    param(
+        [Parameter(Mandatory)] [string]$Name,
+        [Parameter(Mandatory)] [string]$TargetPath,
+        [string]$Arguments = ''
+    )
+    $startup = [Environment]::GetFolderPath('Startup')
+    $lnkPath = Join-Path $startup "$Name.lnk"
+    if (Test-Path $lnkPath) {
+        Write-Ok "$Name autostart already configured ($lnkPath)"
+        return $true
+    }
+    try {
+        $shell = New-Object -ComObject WScript.Shell
+        $sc = $shell.CreateShortcut($lnkPath)
+        $sc.TargetPath = $TargetPath
+        if ($Arguments) { $sc.Arguments = $Arguments }
+        $sc.WorkingDirectory = Split-Path -Parent $TargetPath
+        $sc.WindowStyle = 7   # minimized
+        $sc.Save()
+        Write-Ok "$Name autostart shortcut created ($lnkPath)"
+        return $true
+    } catch {
+        Write-Fail "could not create $Name autostart shortcut: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Ensure-Ollama-Autostart {
+    if ($NoAutostart) { return $true }
+    if ($NoOllama)    { return $true }
+    # The official Ollama Windows installer registers an "Ollama" Run key under
+    # HKCU\Software\Microsoft\Windows\CurrentVersion\Run. Honor that and don't
+    # duplicate. Only fall back to a Startup shortcut if no Run entry exists.
+    $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    try {
+        $existing = Get-ItemProperty -Path $runKey -Name 'Ollama' -ErrorAction Stop
+        if ($existing.Ollama) {
+            Write-Ok "ollama autostart already wired by Ollama installer (HKCU Run key)"
+            return $true
+        }
+    } catch { }
+
+    # Prefer 'ollama app.exe' (the tray app) since it manages 'ollama serve'
+    # itself; fall back to running 'ollama serve' directly.
+    $appExe = $null
+    foreach ($p in @(
+        "$env:LOCALAPPDATA\Programs\Ollama\ollama app.exe",
+        "$env:ProgramFiles\Ollama\ollama app.exe"
+    )) {
+        if (Test-Path $p) { $appExe = $p; break }
+    }
+    if ($appExe) {
+        return (New-StartupShortcut -Name 'Ollama' -TargetPath $appExe)
+    }
+    $cli = Find-Ollama
+    if ($cli) {
+        return (New-StartupShortcut -Name 'Ollama serve' -TargetPath $cli -Arguments 'serve')
+    }
+    Write-Warn "ollama autostart: no ollama binary found, skipping"
+    return $false
+}
+
+# ---------------------------------------------------------------------------
 # Top-level
 # ---------------------------------------------------------------------------
 function Invoke-Che-Install-Deps {
     Write-Host "che-cli -- installing dependencies" -ForegroundColor White
     $wingetState = if (Test-Winget) { 'available' } else { 'NOT FOUND' }
-    Write-Host "  winget: $wingetState   model: $Model" -ForegroundColor DarkGray
+    $dockerState = if ($WithDocker) { 'yes' } else { 'no (use -WithDocker)' }
+    Write-Host "  winget: $wingetState   model: $Model   docker: $dockerState" -ForegroundColor DarkGray
 
     $rc = 0
     if (-not (Ensure-Git))    { $rc = 1 }
     if (-not (Ensure-Python)) { $rc = 1 }
     if (-not (Ensure-Ollama)) { $rc = 1 }
+    if (-not (Ensure-Docker)) { $rc = 1 }
+
+    # Autostart wiring is best-effort; don't fail the install if it can't be set up.
+    Write-Step "Autostart"
+    Ensure-Ollama-Autostart | Out-Null
+    if ($WithDocker) {
+        # Docker Desktop installs its own "Start Docker Desktop when you sign in"
+        # setting (default: enabled). Nothing to wire from here.
+        Write-Info "Docker Desktop manages its own login autostart (enabled by default)"
+    }
 
     Write-Host ""
     if ($rc -eq 0) {

@@ -133,7 +133,14 @@ if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model)
   ' | awk 'NR==1 {
     sub(/^[[:space:]]+/, "")
     sub(/^["'"'"']/, ""); sub(/["'"'"']$/, "")
-  } { print }')"
+  } { print }' | awk '
+    # Enforce git-commit convention: blank line between subject and body.
+    # Without it, git treats the whole run-on block as one giant subject and
+    # `git log %s` will smash it into one line (downstream: che status).
+    NR==1 { print; need_blank=1; next }
+    need_blank { if (NF) print ""; need_blank=0 }
+    { print }
+  ')"
   if [ -z "$(printf '%s\n' "$msg" | head -n 1)" ]; then
     echo "che commit: LLM returned empty message — using default message" >&2
     msg=""
