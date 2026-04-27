@@ -146,34 +146,32 @@ wf_input_names() {
 # On a unique match, sets WF_ROOT / WF_DIR / WF_FILE and prints the workflow's
 # filename stem. Returns:
 #   0 — single match (output usable as `che run <stem>`)
-#   1 — no match, no workflows dir, or yq unavailable (silent)
+#   1 — no match or no workflows dir (silent)
 #   2 — multiple workflows declare the same trigger (diagnostic on stderr)
 #
 # Unlike most helpers here, this never calls wf_die — the dispatcher uses it
 # as a soft probe before falling through to built-ins.
+#
+# Distinguishes string vs list form by `| length`: yaml_get.py returns the list
+# length for sequences and 0 for scalars/missing (see yaml_get.py).
 wf_resolve_trigger() {
   local trig="$1"
   [ -n "$trig" ] || return 1
-  command -v yq >/dev/null 2>&1 || return 1
   wf_find_dir || return 1
 
-  local f kind n i t matches=()
+  local f n i t matches=()
   shopt -s nullglob
   for f in "$WF_DIR"/*.yml "$WF_DIR"/*.yaml; do
-    kind="$(yq -r '.trigger | tag' "$f" 2>/dev/null || true)"
-    case "$kind" in
-      '!!str')
-        t="$(yq -r '.trigger' "$f" 2>/dev/null || true)"
-        [ "$t" = "$trig" ] && matches+=("$f")
-        ;;
-      '!!seq')
-        n="$(yq -r '.trigger | length' "$f" 2>/dev/null || echo 0)"
-        for ((i = 0; i < ${n:-0}; i++)); do
-          t="$(yq -r ".trigger[$i]" "$f" 2>/dev/null || true)"
-          if [ "$t" = "$trig" ]; then matches+=("$f"); break; fi
-        done
-        ;;
-    esac
+    n="$(wf_yq '.trigger | length' "$f")"
+    if [ "${n:-0}" -gt 0 ]; then
+      for ((i = 0; i < n; i++)); do
+        t="$(wf_yq ".trigger[$i]" "$f")"
+        if [ "$t" = "$trig" ]; then matches+=("$f"); break; fi
+      done
+    else
+      t="$(wf_yq '.trigger' "$f")"
+      [ "$t" = "$trig" ] && matches+=("$f")
+    fi
   done
   shopt -u nullglob
 
