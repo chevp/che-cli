@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # che done — finish the active che flow:
 #   gh pr merge <pr> --squash --auto --delete-branch
-#     (falls back to a direct squash merge if the repo has auto-merge disabled)
+#     (falls back to a direct squash merge if the repo has auto-merge disabled,
+#      and auto-promotes the PR out of draft if needed)
 #   git checkout <base> && git pull --ff-only && prune origin
 #   delete the .git/che-flow marker.
 set -euo pipefail
@@ -55,21 +56,37 @@ if [ "$cur" != "$branch" ]; then
 fi
 
 # --auto: gh waits for required checks to pass, then squash-merges and deletes branch.
-# Repos with auto-merge disabled reject this with a GraphQL error
-# (enablePullRequestAutoMerge); fall back to an immediate squash merge in that case.
+# Recoverable failures we transparently retry:
+#   * enablePullRequestAutoMerge — repo has auto-merge disabled; retry without --auto
+#   * "is still a draft"         — PR is draft; promote with `gh pr ready`, then retry
+# Each recovery is guarded so we cannot loop on the same error twice.
 err_log="$(mktemp)"
 trap 'rm -f "$err_log"' EXIT
 merge_mode="auto"
-if ! gh pr merge "$pr" --squash --auto --delete-branch 2>"$err_log"; then
-  if grep -q 'enablePullRequestAutoMerge' "$err_log"; then
-    echo "che done: auto-merge disabled on this repo — falling back to direct merge" >&2
-    gh pr merge "$pr" --squash --delete-branch
-    merge_mode="direct"
+draft_promoted=0
+while :; do
+  rc=0
+  if [ "$merge_mode" = "auto" ]; then
+    gh pr merge "$pr" --squash --auto --delete-branch 2>"$err_log" || rc=$?
   else
-    cat "$err_log" >&2
-    exit 1
+    gh pr merge "$pr" --squash --delete-branch 2>"$err_log" || rc=$?
   fi
-fi
+  if [ "$rc" -eq 0 ]; then break; fi
+
+  if [ "$merge_mode" = "auto" ] && grep -q 'enablePullRequestAutoMerge' "$err_log"; then
+    echo "che done: auto-merge disabled on this repo — falling back to direct merge" >&2
+    merge_mode="direct"
+    continue
+  fi
+  if [ "$draft_promoted" -eq 0 ] && grep -q 'is still a draft' "$err_log"; then
+    echo "che done: PR #$pr is a draft — marking ready, then retrying" >&2
+    gh pr ready "$pr"
+    draft_promoted=1
+    continue
+  fi
+  cat "$err_log" >&2
+  exit 1
+done
 
 git checkout "$base"
 git pull --ff-only
