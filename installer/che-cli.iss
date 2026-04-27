@@ -66,20 +66,22 @@ Source: "lib\install-deps.ps1";    DestDir: "{app}\installer\lib"; Flags: ignore
 
 ; Helpful extras
 Source: "..\README.md";            DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
-Source: "..\.env.example";         DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#MyAppName} (cmd)";    Filename: "{cmd}"; Parameters: "/k ""{app}\bin\che.bat"" doctor"; WorkingDir: "{app}"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
-; Install missing deps. CHE_NO_MODEL=1 unless the "pullmodel" sub-task is checked.
+; Install missing deps in a VISIBLE console so the user can see winget /
+; ollama progress. {code:GetDepsArgs} adds -NoModel unless the "pullmodel"
+; sub-task is checked. We deliberately do NOT use 'runhidden' here -- winget
+; and 'ollama pull' both print non-newline progress that blocks any pipe;
+; letting the console show through is the most reliable UX.
 Filename: "powershell.exe"; \
-  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer\lib\install-deps.ps1"" -AssumeYes"; \
-  StatusMsg: "Installing dependencies (Git, Python, Ollama)…"; \
-  Flags: runhidden waituntilterminated; \
-  Tasks: installdeps; \
-  BeforeInstall: SetDepsEnv
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\installer\lib\install-deps.ps1"" {code:GetDepsArgs}"; \
+  StatusMsg: "Installing dependencies (Git, Python, Ollama) -- see console window..."; \
+  Flags: waituntilterminated; \
+  Tasks: installdeps
 
 ; Final visible verification step.
 Filename: "{cmd}"; Parameters: "/c ""{app}\bin\che.bat"" doctor & pause"; \
@@ -183,15 +185,13 @@ begin
   WriteEnvPath(NewVal);
 end;
 
-procedure SetDepsEnv();
+function GetDepsArgs(Param: String): String;
 begin
-  // install-deps.ps1 reads these; sub-task "pullmodel" toggles the model pull.
-  if WizardIsTaskSelected('installdeps\pullmodel') then
-    SetEnvironmentVariable('CHE_NO_MODEL', '0')
-  else
-    SetEnvironmentVariable('CHE_NO_MODEL', '1');
-  // Always non-interactive in installer context.
-  SetEnvironmentVariable('CHE_ASSUME_YES', '1');
+  // install-deps.ps1 args: always -AssumeYes (silent install context);
+  // add -NoModel unless the "pullmodel" sub-task is checked.
+  Result := '-AssumeYes';
+  if not WizardIsTaskSelected('installdeps\pullmodel') then
+    Result := Result + ' -NoModel';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);

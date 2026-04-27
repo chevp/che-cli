@@ -377,7 +377,7 @@ che_install_deps() {
 
   step "Core shell tools (git, curl)"
   ensure_tool git  git  "che commit / che ship use git"          || rc=1
-  ensure_tool curl curl "needed by ollama / openai / anthropic"  || rc=1
+  ensure_tool curl curl "needed by ollama"                       || rc=1
 
   ensure_python || rc=1
 

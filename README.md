@@ -134,10 +134,13 @@ che ship                # one-shot recursive add + commit + push
 Provider is selected via `CHE_PROVIDER`:
 
 ```sh
-CHE_PROVIDER=ollama     che commit          # default — local llama3.2
-CHE_PROVIDER=openai     che commit          # needs OPENAI_API_KEY
-CHE_PROVIDER=anthropic  che commit          # needs ANTHROPIC_API_KEY
+CHE_PROVIDER=ollama       che commit        # default — local llama3.2
+CHE_PROVIDER=claude-code  che commit        # delegates to the `claude` CLI
 ```
+
+Cloud LLMs are only reachable through their official CLIs (e.g. Claude Code's
+`claude` binary). `che` never handles API keys directly — auth is owned by
+the CLI you've installed.
 
 Configuration (all environment variables, all optional):
 
@@ -146,14 +149,8 @@ Configuration (all environment variables, all optional):
 | `CHE_PROVIDER`            | `ollama`                  |
 | `CHE_OLLAMA_HOST`         | `http://localhost:11434`  |
 | `CHE_OLLAMA_MODEL`        | `llama3.2`                |
-| `CHE_OPENAI_HOST`         | `https://api.openai.com/v1`     |
-| `CHE_OPENAI_MODEL`        | `gpt-4o-mini`             |
-| `CHE_ANTHROPIC_HOST`      | `https://api.anthropic.com/v1`  |
-| `CHE_ANTHROPIC_MODEL`     | `claude-sonnet-4-6`       |
 | `CHE_MAX_DIFF_CHARS`      | `8000`                    |
-
-API keys come from `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` — see
-[`.env.example`](.env.example).
+| `CHE_FORCE_CLAUDE_CODE`   | unset (set to `1` to always escalate) |
 
 If you don't have a local LLM running yet, follow
 [cura-llm-local](https://chevp.github.io/cura-llm-local/) — about five minutes.
@@ -231,12 +228,10 @@ che-cli/
 ├── bin/
 │   └── che                       # dispatcher
 ├── client/http/                  # REST request samples (VS Code / JetBrains)
-│   ├── ollama.http
-│   ├── openai.http
-│   └── anthropic.http
+│   └── ollama.http
 ├── lib/che/
 │   ├── platform.sh               # OS detection (darwin/windows/wsl/linux)
-│   ├── provider.sh               # provider router (ollama/openai/anthropic)
+│   ├── provider.sh               # provider router (ollama/claude-code)
 │   ├── doctor.sh                 # `che doctor`
 │   ├── git/
 │   │   ├── check.sh
@@ -244,18 +239,14 @@ che-cli/
 │   ├── ollama/
 │   │   ├── check.sh
 │   │   └── client.sh             # ollama_ping / ollama_generate / ollama_has_model
-│   ├── openai/
+│   ├── claude-code/
 │   │   ├── check.sh
-│   │   └── client.sh
-│   ├── anthropic/
-│   │   ├── check.sh
-│   │   └── client.sh
+│   │   └── client.sh             # wraps the `claude` CLI binary
 │   └── docker/
 │       ├── check.sh
 │       └── client.sh
 ├── docs/
 │   └── index.md                  # GitHub Pages source
-├── .env.example
 ├── install.sh
 └── README.md
 ```

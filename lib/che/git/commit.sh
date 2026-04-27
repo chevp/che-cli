@@ -35,10 +35,8 @@ Options:
   -h, --help      show this help
 
 Environment:
-  CHE_PROVIDER             ollama (default) | openai | anthropic
+  CHE_PROVIDER             ollama (default) | claude-code
   CHE_OLLAMA_HOST/MODEL    Ollama config (default model: llama3.2)
-  CHE_OPENAI_MODEL         OpenAI model     (needs OPENAI_API_KEY)
-  CHE_ANTHROPIC_MODEL      Anthropic model  (needs ANTHROPIC_API_KEY)
   CHE_MAX_DIFF_CHARS       diff truncation (default: 8000)
 
 Requires: git, curl, python3 (or python), and a working LLM provider.
@@ -114,38 +112,36 @@ fallback_msg() {
 
 msg=""
 provider_ensure_running >/dev/null 2>&1 || true
-if ! provider_ping; then
-  echo "che commit: provider '$(provider_active)' not reachable — using default message" >&2
-  echo "             run 'che doctor provider' for diagnostics" >&2
-else
-  out_tmp="$(mktemp)"
-  err_tmp="$(mktemp)"
-  trap 'rm -f "$out_tmp" "$err_tmp"' EXIT
 
-  provider_generate "$prompt" >"$out_tmp" 2>"$err_tmp" &
-  gen_pid=$!
+out_tmp="$(mktemp)"
+err_tmp="$(mktemp)"
+trap 'rm -f "$out_tmp" "$err_tmp"' EXIT
 
-  if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model))"; then
-    raw="$(cat "$out_tmp")"
-    msg="$(printf '%s\n' "$raw" | awk '
-      NF && !seen { seen=1 }
-      seen { buf[++n]=$0 }
-      END {
-        while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--
-        for (i=1; i<=n; i++) print buf[i]
-      }
-    ' | awk 'NR==1 {
-      sub(/^[[:space:]]+/, "")
-      sub(/^["'"'"']/, ""); sub(/["'"'"']$/, "")
-    } { print }')"
-    if [ -z "$(printf '%s\n' "$msg" | head -n 1)" ]; then
-      echo "che commit: LLM returned empty message — using default message" >&2
-      msg=""
-    fi
-  else
-    [ -s "$err_tmp" ] && cat "$err_tmp" >&2
-    echo "che commit: provider '$(provider_active)' request failed — using default message" >&2
+provider_smart_generate "$prompt" >"$out_tmp" 2>"$err_tmp" &
+gen_pid=$!
+
+if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model))"; then
+  [ -s "$err_tmp" ] && cat "$err_tmp" >&2
+  raw="$(cat "$out_tmp")"
+  msg="$(printf '%s\n' "$raw" | awk '
+    NF && !seen { seen=1 }
+    seen { buf[++n]=$0 }
+    END {
+      while (n > 0 && buf[n] ~ /^[[:space:]]*$/) n--
+      for (i=1; i<=n; i++) print buf[i]
+    }
+  ' | awk 'NR==1 {
+    sub(/^[[:space:]]+/, "")
+    sub(/^["'"'"']/, ""); sub(/["'"'"']$/, "")
+  } { print }')"
+  if [ -z "$(printf '%s\n' "$msg" | head -n 1)" ]; then
+    echo "che commit: LLM returned empty message — using default message" >&2
+    msg=""
   fi
+else
+  [ -s "$err_tmp" ] && cat "$err_tmp" >&2
+  echo "che commit: message generation failed — using default message" >&2
+  echo "             run 'che doctor provider' for diagnostics" >&2
 fi
 
 if [ -z "$msg" ]; then

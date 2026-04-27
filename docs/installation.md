@@ -105,37 +105,24 @@ CHE_NO_PATH_EDIT=1 ./install.sh
 ## Provider configuration
 
 `che` defaults to a **local Ollama server**, so the zero-config path needs
-no API keys. To use OpenAI or Anthropic, drop a `.env` next to the repo
-or export the variables in your shell.
+no API keys. For cloud LLMs, `che` only supports the official CLIs — auth
+stays inside the CLI you've installed, never in `che`'s environment.
 
-### Unix-like
+### Claude Code (cloud, via CLI)
 
-```sh
-# .env  (see .env.example)
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-```
+Install the [Claude Code CLI](https://docs.claude.com/claude-code) and log
+in once with `claude` itself; `che` shells out to that binary.
 
 ```sh
-CHE_PROVIDER=openai     che commit
-CHE_PROVIDER=anthropic  che commit
+export CHE_PROVIDER=claude-code
+che commit
 ```
 
-### Windows (Git Bash / WSL)
+To always escalate to Claude Code (instead of using the local provider as
+a fallback), set:
 
-```bash
-# In Git Bash / WSL shell:
-export OPENAI_API_KEY="sk-..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-CHE_PROVIDER=openai che commit
-```
-
-Or add to your `.bashrc` / `.bash_profile`:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-export CHE_PROVIDER="openai"
+```sh
+export CHE_FORCE_CLAUDE_CODE=1
 ```
 
 For the local Ollama setup itself, follow the companion guide:

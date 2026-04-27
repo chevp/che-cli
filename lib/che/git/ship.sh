@@ -20,10 +20,20 @@ git_dir="$(git rev-parse --git-dir)"
 marker="$git_dir/che-flow"
 
 if [ -f "$repo_root/.gitmodules" ]; then
-  git -C "$repo_root" submodule update --init
+  # Init each submodule individually so one failure (e.g. a sibling repo
+  # checked into a path Windows can't represent like 'foo:/bar.json') doesn't
+  # abort the whole ship and skip the parent's commit/push.
+  failed_submodules=()
 
   while read -r sm_path; do
     [ -z "$sm_path" ] && continue
+
+    if ! git -C "$repo_root" submodule update --init -- "$sm_path"; then
+      failed_submodules+=("$sm_path (init failed)")
+      echo "che ship: submodule update failed for '$sm_path' — skipping (continuing)" >&2
+      continue
+    fi
+
     sm_abs="$repo_root/$sm_path"
     [ -e "$sm_abs/.git" ] || continue
 
@@ -36,8 +46,18 @@ if [ -f "$repo_root/.gitmodules" ]; then
       echo "che ship: $sm_path is in detached HEAD, skipping pull"
     fi
 
-    ( cd "$sm_abs" && "$CHE_BIN" ship )
+    if ! ( cd "$sm_abs" && "$CHE_BIN" ship ); then
+      failed_submodules+=("$sm_path (ship failed)")
+      echo "che ship: ship failed in '$sm_path' (continuing)" >&2
+    fi
   done < <(git -C "$repo_root" config -f .gitmodules --get-regexp '^submodule\..*\.path$' | awk '{print $2}')
+
+  if [ "${#failed_submodules[@]}" -gt 0 ]; then
+    printf '\nche ship: %d submodule(s) had errors:\n' "${#failed_submodules[@]}" >&2
+    for f in "${failed_submodules[@]}"; do
+      printf '  - %s\n' "$f" >&2
+    done
+  fi
 fi
 
 # --- pull main repo before commit/push: ff-only first, fall back to rebase ---
@@ -48,13 +68,40 @@ if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
     if ! git -C "$repo_root" pull --rebase --autostash; then
       git_dir_pull="$(git -C "$repo_root" rev-parse --git-dir)"
       if [ -d "$git_dir_pull/rebase-merge" ] || [ -d "$git_dir_pull/rebase-apply" ]; then
-        conflicts="$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null)"
-        echo "che ship: rebase produced conflicts in $(basename "$repo_root") — aborting" >&2
-        [ -n "$conflicts" ] && printf 'conflicting files:\n%s\n' "$conflicts" >&2
-        git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
+        echo "che ship: rebase produced conflicts in $(basename "$repo_root") — invoking claude code" >&2
+        # shellcheck source=conflicts.sh
+        . "$LIB_DIR/git/conflicts.sh"
+        # Loop because `rebase --continue` can surface a fresh batch of
+        # conflicts on the next replayed commit.
+        rebase_done=false
+        while true; do
+          set +e
+          ( cd "$repo_root" && conflicts_resolve_interactive )
+          resolve_rc=$?
+          set -e
+          if [ "$resolve_rc" -ne 0 ]; then
+            git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
+            echo "che ship: conflicts unresolved — rebase aborted" >&2
+            exit 1
+          fi
+          # Skip the commit message editor that `rebase --continue` would open.
+          if GIT_EDITOR=true git -C "$repo_root" rebase --continue; then
+            rebase_done=true
+            break
+          fi
+          # `rebase --continue` failed — only loop if it's because of more conflicts.
+          if [ -z "$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null)" ]; then
+            echo "che ship: rebase --continue failed unexpectedly — aborting" >&2
+            git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
+            exit 1
+          fi
+          echo "che ship: more conflicts on next commit — re-invoking claude code" >&2
+        done
+        $rebase_done && echo "che ship: ✓ rebase completed with claude assistance"
+      else
+        echo "che ship: pull failed in $(basename "$repo_root") — resolve manually and retry" >&2
+        exit 1
       fi
-      echo "che ship: pull failed in $(basename "$repo_root") — resolve manually and retry" >&2
-      exit 1
     fi
   fi
 fi

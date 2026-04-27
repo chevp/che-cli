@@ -69,22 +69,42 @@ function Test-Winget {
     return (Test-Command 'winget')
 }
 
+function Test-IsAdmin {
+    $id = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $pr = New-Object Security.Principal.WindowsPrincipal($id)
+    return $pr.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
 function Install-Winget-Pkg {
     param(
         [Parameter(Mandatory)] [string]$Id,
-        [string]$Name = $Id
+        [string]$Name = $Id,
+        # Some packages (Git, Ollama) install fine to user scope without UAC.
+        # When the installer runs unelevated, force user scope so winget never
+        # blocks waiting for an elevation prompt that nobody can answer.
+        [switch]$AllowMachineScope
     )
     if (-not (Test-Winget)) {
         Write-Fail "winget not available -- cannot auto-install $Name"
         Write-Info "install winget via the Microsoft Store ('App Installer')"
         return $false
     }
-    Write-Info "winget install --id $Id  (this may take a while)"
+
+    $scopeArgs = @()
+    if (-not $AllowMachineScope -and -not (Test-IsAdmin)) {
+        $scopeArgs = @('--scope', 'user')
+    }
+
+    Write-Info "winget install --id $Id $($scopeArgs -join ' ')  (this may take a while)"
+    # Stream output directly to the console -- DO NOT pipe through
+    # ForEach-Object. winget prints non-newline progress chars and a pipe
+    # buffers them indefinitely, making the installer appear to hang.
     & winget install --id $Id `
+        @scopeArgs `
         --silent `
         --accept-package-agreements `
         --accept-source-agreements `
-        --disable-interactivity 2>&1 | ForEach-Object { Write-Host "         $_" -ForegroundColor DarkGray }
+        --disable-interactivity
     $exit = $LASTEXITCODE
     Refresh-Path
     if ($exit -eq 0) {
@@ -95,6 +115,20 @@ function Install-Winget-Pkg {
     if ($exit -eq -1978335214) {
         Write-Ok "$Name already installed (per winget)"
         return $true
+    }
+    # If user-scope failed, retry once without --scope user (some packages
+    # are machine-scope only).
+    if ($scopeArgs.Count -gt 0) {
+        Write-Warn "user-scope install failed (exit $exit) -- retrying without --scope"
+        & winget install --id $Id `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --disable-interactivity
+        $exit = $LASTEXITCODE
+        Refresh-Path
+        if ($exit -eq 0) { Write-Ok "$Name installed via winget"; return $true }
+        if ($exit -eq -1978335214) { Write-Ok "$Name already installed"; return $true }
     }
     Write-Fail "winget install $Id failed (exit $exit)"
     return $false
@@ -189,7 +223,7 @@ function Ensure-Python {
         return $false
     }
     & $py -m pip install --user --upgrade pip *> $null
-    & $py -m pip install --user pyyaml 2>&1 | ForEach-Object { Write-Host "         $_" -ForegroundColor DarkGray }
+    & $py -m pip install --user pyyaml
     if ($LASTEXITCODE -eq 0) { Write-Ok "PyYAML installed via pip --user"; return $true }
     Write-Fail "pip install pyyaml failed"
     return $false

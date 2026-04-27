@@ -29,12 +29,9 @@ lib/che/
   ollama/
     check.sh
     client.sh                ollama_ping / _has_model / _generate
-  openai/
+  claude-code/
     check.sh
-    client.sh                openai_ping / _has_model / _generate
-  anthropic/
-    check.sh
-    client.sh                anthropic_ping / _has_model / _generate
+    client.sh                wraps the `claude` CLI binary
   docker/
     check.sh
     client.sh

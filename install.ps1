@@ -177,6 +177,12 @@ if (";$env:Path;" -notlike "*;$binDir;*") { $env:Path = "$binDir;$env:Path" }
 # ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "==> Verification" -ForegroundColor Cyan
+
+# Make sure ✓ / ✗ from `che doctor` survive the trip back through PowerShell.
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding           = [System.Text.Encoding]::UTF8
+} catch { }
 $bash = $null
 foreach ($c in @(
     $env:CHE_GIT_BASH,
@@ -186,10 +192,16 @@ foreach ($c in @(
 )) {
     if ($c -and (Test-Path $c)) { $bash = $c; break }
 }
-if ($bash) {
-    & $bash -c "PATH='$($binDir -replace '\\','/')':\$PATH che doctor" 2>&1 | ForEach-Object { Write-Host $_ }
+$cheBat = Join-Path $binDir 'che.bat'
+if (Test-Path $cheBat) {
+    & $cheBat doctor 2>&1 | ForEach-Object { Write-Host $_ }
+} elseif ($bash) {
+    # Fallback: invoke the bash dispatcher directly. Use `$PATH (backtick) so
+    # PowerShell preserves the literal $PATH for bash to expand -- not \$PATH,
+    # which PowerShell does NOT treat as an escape.
+    & $bash -c "PATH='$($binDir -replace '\\','/')':`$PATH che doctor" 2>&1 | ForEach-Object { Write-Host $_ }
 } else {
-    Write-Host "  [WARN] Git Bash not found -- skipping 'che doctor'" -ForegroundColor Yellow
+    Write-Host "  [WARN] che.bat / Git Bash not found -- skipping 'che doctor'" -ForegroundColor Yellow
     Write-Host "         install Git for Windows, then run: che doctor" -ForegroundColor DarkGray
 }
 

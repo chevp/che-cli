@@ -59,19 +59,20 @@ through the model pull as well.
 
 ---
 
-## `che commit: provider 'openai' / 'anthropic' not reachable`
+## `che commit: provider 'claude-code' not reachable`
 
-Either the API key is missing or the network call failed.
+The `claude` CLI isn't on `$PATH`. `che` never speaks to cloud LLMs over
+HTTP — it shells out to the CLI, so the CLI must be installed and logged
+in.
 
 ```sh
-echo "${OPENAI_API_KEY:-MISSING}" | head -c 8
-echo "${ANTHROPIC_API_KEY:-MISSING}" | head -c 8
-che doctor provider             # confirms which key is missing
+command -v claude               # is the binary on PATH?
+claude --version                # confirm install
+che doctor claude-code          # full diagnostics
 ```
 
-`che` reads `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` from the environment.
-A `.env` next to the repo is **not** auto-loaded — export them in your
-shell rc, or `source .env` before running `che`.
+Install Claude Code from <https://docs.claude.com/claude-code> and run
+`claude` once interactively to complete login.
 
 ---
 
@@ -123,9 +124,8 @@ trivial changes). If the model ignores the format, three things to try:
 
 - Use `--edit` to open `$EDITOR` with the message pre-filled:
   `che commit --edit`.
-- Switch to a more capable model — `gpt-4o-mini` and
-  `claude-sonnet-4-6` follow format instructions much more reliably than
-  small local models.
+- Switch to Claude Code (`CHE_PROVIDER=claude-code`) — it follows format
+  instructions much more reliably than small local models.
 - Run `--dry-run` repeatedly to sample outputs and see whether the issue
   is the prompt or the model.
 

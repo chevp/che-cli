@@ -50,7 +50,7 @@ ollama_check() {
     ok "model available: $CHE_OLLAMA_MODEL"
   else
     fail "model not pulled: $CHE_OLLAMA_MODEL"
-    info "pull it: ollama pull $CHE_OLLAMA_MODEL"
+    info "pull it: che init  (or: ollama pull $CHE_OLLAMA_MODEL)"
     rc=1
   fi
 

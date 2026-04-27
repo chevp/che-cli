@@ -48,16 +48,20 @@ che commit --edit
 
 Provider defaults to **Ollama (local)**. Switch via `CHE_PROVIDER`:
 
-| Provider     | Selector                  | API key            |
-|--------------|---------------------------|--------------------|
-| Ollama       | `CHE_PROVIDER=ollama`     | none (local)       |
-| OpenAI       | `CHE_PROVIDER=openai`     | `OPENAI_API_KEY`   |
-| Anthropic    | `CHE_PROVIDER=anthropic`  | `ANTHROPIC_API_KEY`|
+| Provider    | Selector                    | Auth                                                |
+|-------------|-----------------------------|-----------------------------------------------------|
+| Ollama      | `CHE_PROVIDER=ollama`       | none (local server)                                 |
+| Claude Code | `CHE_PROVIDER=claude-code`  | handled by the `claude` CLI (subscription / login)  |
 
-The HTTP request shapes that each provider speaks are also kept as ad-hoc REST
-samples under [`client/http/`](https://github.com/chevp/che-cli/tree/main/client/http) —
-useful for poking at a provider in VS Code REST Client or JetBrains HTTP Client
-without going through the CLI.
+`che` never handles API keys directly. Cloud LLMs are reached only through
+their official CLIs — install `claude` and let it own auth. To remove the
+local fallback and force every prompt through Claude Code, set
+`CHE_FORCE_CLAUDE_CODE=1`.
+
+The HTTP request shape Ollama speaks is kept as an ad-hoc REST sample under
+[`client/http/`](https://github.com/chevp/che-cli/tree/main/client/http) —
+useful for poking at the local server in VS Code REST Client or JetBrains
+HTTP Client without going through the CLI.
 
 For local Ollama setup, see the companion guide:
 **[cura-llm-local](https://chevp.github.io/cura-llm-local/)**.
@@ -99,10 +103,9 @@ lib/che/
   platform.sh                   OS detection: darwin | windows | wsl | linux
   provider.sh                   routes calls to the active provider
   git/        check.sh, commit.sh
-  ollama/     check.sh, client.sh         <p>_ping / _generate / _has_model
-  openai/     check.sh, client.sh           "
-  anthropic/  check.sh, client.sh           "
-  docker/     check.sh, client.sh
+  ollama/      check.sh, client.sh        <p>_ping / _generate / _has_model
+  claude-code/ check.sh, client.sh        wraps the `claude` CLI binary
+  docker/      check.sh, client.sh
   workflow/   check.sh, loader.sh, list.sh, show.sh, run.sh
   workflow.sh                   `che workflow` sub-dispatcher
   doctor.sh                     `che doctor` — runs all checks

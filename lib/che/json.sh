@@ -4,14 +4,19 @@
 # distro, and on Windows it's `winget install Python.Python.3` (~30 seconds).
 
 _che_json_python() {
-  if command -v python3 >/dev/null 2>&1; then
-    python3 "$@"
-  elif command -v python >/dev/null 2>&1; then
-    python "$@"
-  else
-    echo "che: need python3 (or python) — install via brew/apt/winget" >&2
-    return 127
-  fi
+  # Probe by actually running each candidate. On Windows, `python3` / `python`
+  # is often a Microsoft Store App Execution Alias that sits on PATH but
+  # exits without running anything (printing a localized "Python not found"
+  # message). `command -v` would falsely accept it; `-c ''` weeds it out.
+  local cand
+  for cand in python3 python; do
+    if command -v "$cand" >/dev/null 2>&1 && "$cand" -c '' >/dev/null 2>&1; then
+      "$cand" "$@"
+      return $?
+    fi
+  done
+  echo "che: need python3 (or python) — install via brew/apt/winget" >&2
+  return 127
 }
 
 # json_string_literal <s>

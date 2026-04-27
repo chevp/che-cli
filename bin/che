@@ -27,8 +27,8 @@ Commands:
                       run as 'che <name>' — shadows the built-ins above
   reinstall           re-run the current repo's scripts/reinstall.sh
   status              git status + che-cli config (provider, model, env)
-  doctor [target]     verify deps and providers (git, gh, docker, ollama, openai,
-                      anthropic, workflow)
+  doctor [target]     verify deps and providers (git, gh, docker, ollama,
+                      claude-code, workflow)
   help                show this message
 
 Run 'che <command> --help' for command-specific options.

@@ -53,8 +53,6 @@ fi
 
 env_set=()
 for v in CHE_PROVIDER CHE_OLLAMA_HOST CHE_OLLAMA_MODEL \
-         CHE_OPENAI_HOST CHE_OPENAI_MODEL \
-         CHE_ANTHROPIC_HOST CHE_ANTHROPIC_MODEL \
          CHE_MAX_DIFF_CHARS; do
   if [ -n "${!v:-}" ]; then
     env_set+=("$v=${!v}")

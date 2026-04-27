@@ -3,6 +3,15 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Force UTF-8 so the ✓ / ✗ glyphs that bash emits aren't mojibake'd into
+# Ô£ô / Ô£ù when PowerShell decodes them through the default OEM code page.
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    $OutputEncoding           = [System.Text.Encoding]::UTF8
+} catch {
+    # Some hosts (e.g. ISE) won't allow this; fall through silently.
+}
+
 function Find-GitBash {
     # ProgramW6432 always points at the 64-bit Program Files, even when this
     # script is running inside a 32-bit PowerShell (e.g. spawned by the Inno
