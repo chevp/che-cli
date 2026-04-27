@@ -35,7 +35,7 @@ Options:
   -h, --help      show this help
 
 Environment:
-  CHE_PROVIDER             ollama (default) | claude-code
+  CHE_PROVIDER             ollama (default) | claude-code | copilot
   CHE_OLLAMA_HOST/MODEL    Ollama config (default model: llama3.2)
   CHE_MAX_DIFF_CHARS       diff truncation (default: 8000)
 

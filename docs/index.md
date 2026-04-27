@@ -48,15 +48,16 @@ che commit --edit
 
 Provider defaults to **Ollama (local)**. Switch via `CHE_PROVIDER`:
 
-| Provider    | Selector                    | Auth                                                |
-|-------------|-----------------------------|-----------------------------------------------------|
-| Ollama      | `CHE_PROVIDER=ollama`       | none (local server)                                 |
-| Claude Code | `CHE_PROVIDER=claude-code`  | handled by the `claude` CLI (subscription / login)  |
+| Provider       | Selector                    | Auth                                                |
+|----------------|-----------------------------|-----------------------------------------------------|
+| Ollama         | `CHE_PROVIDER=ollama`       | none (local server)                                 |
+| Claude Code    | `CHE_PROVIDER=claude-code`  | handled by the `claude` CLI (subscription / login)  |
+| GitHub Copilot | `CHE_PROVIDER=copilot`      | handled by the `copilot` CLI (Copilot subscription) |
 
 `che` never handles API keys directly. Cloud LLMs are reached only through
-their official CLIs — install `claude` and let it own auth. To remove the
-local fallback and force every prompt through Claude Code, set
-`CHE_FORCE_CLAUDE_CODE=1`.
+their official CLIs — install `claude` or `copilot` and let it own auth.
+To remove the local fallback and force every prompt through Claude Code,
+set `CHE_FORCE_CLAUDE_CODE=1`.
 
 The HTTP request shape Ollama speaks is kept as an ad-hoc REST sample under
 [`client/http/`](https://github.com/chevp/che-cli/tree/main/client/http) —
@@ -65,6 +66,44 @@ HTTP Client without going through the CLI.
 
 For local Ollama setup, see the companion guide:
 **[cura-llm-local](https://chevp.github.io/cura-llm-local/)**.
+
+### `che issue`
+
+Drafts a GitHub issue via the configured LLM, prints it for review, and
+opens it through `gh issue create`. Subcommands cover listing and closing.
+
+```sh
+che issue "race condition in workflow loader"   # AI drafts title + body, asks to confirm
+che issue create --dry-run                      # draft from current branch + diff, do not open
+che issue list --limit 5                        # list open issues for this repo
+che issue close 42 --reason "fixed in v1.4"     # close issue with comment
+```
+
+Requires `gh` installed and authenticated (`gh auth login`).
+
+### `che status`
+
+One-screen overview of the current repo + che-cli configuration:
+
+- active provider, model, reachability
+- git: branch, upstream, ahead/behind, working-tree state, short status
+- submodules with sync state
+- last 5 commits
+- **issues** — top 5 open GitHub issues for this repo (via `gh`)
+- **pull requests** — top 5 open PRs with draft / review-decision state
+- **plans** — local `.che/plans/*.md` files with status badge
+  (`open` / `in-progress` / `done` / `blocked`)
+
+```sh
+che status            # full overview, including GitHub + plans
+che status --short    # one-line summary, no network calls
+```
+
+GitHub sections are silently skipped if `gh` is missing, unauthenticated,
+or the repo has no GitHub remote. Plan files use a small YAML frontmatter
+(`name`, `status`, optional `progress`); see
+[`.che/plans/README.md`](https://github.com/chevp/che-cli/blob/main/.che/plans/README.md)
+for the format.
 
 ### `che run` / `che workflow`
 
@@ -105,6 +144,7 @@ lib/che/
   git/        check.sh, commit.sh
   ollama/      check.sh, client.sh        <p>_ping / _generate / _has_model
   claude-code/ check.sh, client.sh        wraps the `claude` CLI binary
+  copilot/     check.sh, client.sh        wraps the `copilot` CLI binary
   docker/      check.sh, client.sh
   workflow/   check.sh, loader.sh, list.sh, show.sh, run.sh
   workflow.sh                   `che workflow` sub-dispatcher
@@ -131,7 +171,6 @@ drop a folder, implement those three functions, register it in `provider.sh`.
 `che-cli` is meant to grow organically. Candidates:
 
 - `che pr` — open a PR with an LLM-generated title and body
-- `che explain` — summarize what a file or diff does
 - `che review` — local LLM code review on staged changes
 - `che branch` — name a new branch from a short intent description
 

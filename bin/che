@@ -17,6 +17,8 @@ Commands:
                       in flow mode: push -u + open/update draft PR
   flow <branch>       start a flow branch (pull base, checkout new, mark repo)
   done                finish active flow: gh pr merge --squash --auto, back to base
+  issue [sub] [args]  open / list / close GitHub issues (AI-drafted body);
+                      'che issue [text]' is shorthand for 'che issue create [text]'
   explain [question]  ask the active LLM to diagnose the last che ship/commit failure
                       (read-only — prints a suggested command, never executes)
   init                provision local ollama (verify binary, start server, pull model)
@@ -28,7 +30,7 @@ Commands:
   reinstall           re-run the current repo's scripts/reinstall.sh
   status              git status + che-cli config (provider, model, env)
   doctor [target]     verify deps and providers (git, gh, docker, ollama,
-                      claude-code, workflow)
+                      claude-code, copilot, workflow)
   help                show this message
 
 Run 'che <command> --help' for command-specific options.
@@ -66,6 +68,7 @@ case "$cmd" in
   ship)           exec bash "$CHE_LIB_DIR/git/ship.sh"    "$@" ;;
   flow)           exec bash "$CHE_LIB_DIR/git/flow.sh"    "$@" ;;
   done)           exec bash "$CHE_LIB_DIR/git/done.sh"    "$@" ;;
+  issue)          exec bash "$CHE_LIB_DIR/issue.sh"       "$@" ;;
   explain)        exec bash "$CHE_LIB_DIR/explain.sh"     "$@" ;;
   init)           exec bash "$CHE_LIB_DIR/init.sh"        "$@" ;;
   run)            exec bash "$CHE_LIB_DIR/workflow/run.sh" "$@" ;;

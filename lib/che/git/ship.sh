@@ -10,6 +10,32 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHE_BIN="${CHE_BIN:-$LIB_DIR/../../bin/che}"
 . "$LIB_DIR/git/push.sh"
 
+# Self-update is only checked at the top-level ship invocation. Recursive
+# submodule ships set CHE_SHIP_DEPTH for their children so the prompt fires
+# at most once per user invocation.
+if [ -z "${CHE_SHIP_DEPTH:-}" ]; then
+  _is_top_level_ship=true
+else
+  _is_top_level_ship=false
+fi
+export CHE_SHIP_DEPTH=$((${CHE_SHIP_DEPTH:-0} + 1))
+
+# _ship_finish <exit_code>
+# Single exit point — runs the hash-based self-update check on a successful
+# top-level ship, then exits with the original code. Failed ships skip the
+# check (don't pile updates on top of an existing problem).
+_ship_finish() {
+  local rc="${1:-0}"
+  if $_is_top_level_ship && [ "$rc" = "0" ]; then
+    if [ -f "$LIB_DIR/self_update.sh" ]; then
+      # shellcheck source=../self_update.sh
+      . "$LIB_DIR/self_update.sh"
+      che_self_update_check || true
+    fi
+  fi
+  exit "$rc"
+}
+
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   echo "che ship: not a git repository" >&2
   exit 1
@@ -139,7 +165,7 @@ if [ -f "$marker" ]; then
   if [ -z "$pr" ]; then
     if [ -z "$(git log "origin/$base..$branch" --oneline 2>/dev/null)" ]; then
       echo "che ship: no commits on '$branch' beyond '$base' yet — skipping PR creation" >&2
-      exit 0
+      _ship_finish 0
     fi
     new_pr_url="$(gh pr create --draft --fill --base "$base" --head "$branch")"
     new_pr="$(printf '%s\n' "$new_pr_url" | awk -F/ '/\/pull\//{print $NF}' | tr -d '\r\n')"
@@ -148,12 +174,12 @@ if [ -f "$marker" ]; then
       printf '\n→ draft PR: %s\n' "$new_pr_url"
     else
       echo "che ship: failed to parse PR number from gh output: $new_pr_url" >&2
-      exit 1
+      _ship_finish 1
     fi
   else
     printf '\n→ updated PR #%s\n' "$pr"
   fi
-  exit 0
+  _ship_finish 0
 fi
 
 # --- default: existing behavior ---
@@ -190,8 +216,10 @@ if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
 fi
 
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
-  exec bash "$LIB_DIR/git/commit.sh" --push --yes
+  bash "$LIB_DIR/git/commit.sh" --push --yes
+  _ship_finish 0
 else
   echo "che ship: still in detached HEAD, committing without push"
-  exec bash "$LIB_DIR/git/commit.sh" --yes
+  bash "$LIB_DIR/git/commit.sh" --yes
+  _ship_finish 0
 fi

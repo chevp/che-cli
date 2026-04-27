@@ -137,4 +137,144 @@ if ! $short; then
   printf '\n'
 fi
 
+# --- GitHub: issues + pull requests -----------------------------------------
+# Only in full mode. Calls `gh` in parallel into temp files with a 3s timeout
+# each, so a slow network never stalls the status output. If gh is missing,
+# unauthenticated, or the repo has no GitHub remote, both sections are
+# silently skipped.
+if ! $short && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+  gh_timeout="${CHE_GH_TIMEOUT:-3}"
+  issues_tmp="$(mktemp)"
+  prs_tmp="$(mktemp)"
+  trap 'rm -f "$issues_tmp" "$prs_tmp"' EXIT
+
+  # Run both queries in parallel. `gh` exits non-zero (and prints to stderr)
+  # if the repo isn't on GitHub — we discard stderr and treat empty output
+  # as "no GitHub data to show".
+  (
+    timeout_cmd=""
+    command -v timeout >/dev/null 2>&1 && timeout_cmd="timeout $gh_timeout"
+    $timeout_cmd gh issue list --state open --limit 5 \
+      --json number,title,labels,assignees \
+      --jq '.[] | "\(.number)\t\(.title)\t\([.labels[].name]|join(","))\t\([.assignees[].login]|join(","))"' \
+      >"$issues_tmp" 2>/dev/null
+  ) &
+  issues_pid=$!
+
+  (
+    timeout_cmd=""
+    command -v timeout >/dev/null 2>&1 && timeout_cmd="timeout $gh_timeout"
+    $timeout_cmd gh pr list --state open --limit 5 \
+      --json number,title,isDraft,headRefName,reviewDecision,author \
+      --jq '.[] | "\(.number)\t\(.title)\t\(.isDraft)\t\(.headRefName)\t\(.reviewDecision // "")\t\(.author.login)"' \
+      >"$prs_tmp" 2>/dev/null
+  ) &
+  prs_pid=$!
+
+  wait "$issues_pid" 2>/dev/null || true
+  wait "$prs_pid"    2>/dev/null || true
+
+  # issues
+  section "issues"
+  if [ -s "$issues_tmp" ]; then
+    while IFS=$'\t' read -r num title labels assignees; do
+      meta=""
+      [ -n "$labels" ]    && meta="${meta} ${C_DIM}[${labels}]${C_RESET}"
+      [ -n "$assignees" ] && meta="${meta} ${C_DIM}@${assignees}${C_RESET}"
+      printf '  %s#%s%s %s%s\n' "$C_CYAN" "$num" "$C_RESET" "$title" "$meta"
+    done <"$issues_tmp"
+  else
+    printf '  %s(none open)%s\n' "$C_DIM" "$C_RESET"
+  fi
+
+  # pull requests
+  section "pull requests"
+  if [ -s "$prs_tmp" ]; then
+    while IFS=$'\t' read -r num title is_draft head review author; do
+      state_tag=""
+      if [ "$is_draft" = "true" ]; then
+        state_tag="${C_DIM}draft${C_RESET}"
+      else
+        case "$review" in
+          APPROVED)          state_tag="${C_GREEN}approved${C_RESET}" ;;
+          CHANGES_REQUESTED) state_tag="${C_RED}changes-requested${C_RESET}" ;;
+          REVIEW_REQUIRED)   state_tag="${C_YELLOW}review-required${C_RESET}" ;;
+          "")                state_tag="${C_DIM}open${C_RESET}" ;;
+          *)                 state_tag="${C_DIM}${review}${C_RESET}" ;;
+        esac
+      fi
+      printf '  %s#%s%s %-9b %s %s(%s by @%s)%s\n' \
+        "$C_CYAN" "$num" "$C_RESET" "$state_tag" "$title" \
+        "$C_DIM" "$head" "$author" "$C_RESET"
+    done <"$prs_tmp"
+  else
+    printf '  %s(none open)%s\n' "$C_DIM" "$C_RESET"
+  fi
+fi
+
+# --- plans ------------------------------------------------------------------
+# Reads .che/plans/*.md from the repo root. Each file may carry YAML
+# frontmatter with `name`, `status` (open|in-progress|done|blocked), and
+# optional `progress` (e.g. "60%" or "3/5"). Files without frontmatter are
+# listed without a status badge.
+if ! $short; then
+  plans_dir="$repo_root/.che/plans"
+  if [ -d "$plans_dir" ]; then
+    # Glob safely: nullglob is non-portable, so check pattern manually.
+    plans_found=false
+    plans_header_printed=false
+    for plan_file in "$plans_dir"/*.md; do
+      [ -e "$plan_file" ] || continue
+      base="$(basename "$plan_file" .md)"
+      [ "$base" = "README" ] && continue
+      plans_found=true
+
+      name="$base"; status_v=""; progress=""
+
+      # Parse YAML frontmatter (between two leading '---' lines). We only
+      # extract three fields, so a tiny awk is enough — no python dep here.
+      if head -n 1 "$plan_file" 2>/dev/null | grep -q '^---[[:space:]]*$'; then
+        fm="$(awk 'NR==1 && /^---[[:space:]]*$/ {inside=1; next}
+                   inside && /^---[[:space:]]*$/ {exit}
+                   inside {print}' "$plan_file")"
+        v_name="$(printf '%s\n' "$fm" | awk -F: '/^name:/ {sub(/^name:[[:space:]]*/,""); print; exit}')"
+        v_status="$(printf '%s\n' "$fm" | awk -F: '/^status:/ {sub(/^status:[[:space:]]*/,""); print; exit}')"
+        v_progress="$(printf '%s\n' "$fm" | awk -F: '/^progress:/ {sub(/^progress:[[:space:]]*/,""); print; exit}')"
+        # Strip surrounding quotes and trailing CR/whitespace.
+        for var in v_name v_status v_progress; do
+          val="${!var}"
+          val="${val%$'\r'}"
+          val="${val%\"}"; val="${val#\"}"
+          val="${val%\'}"; val="${val#\'}"
+          printf -v "$var" '%s' "$val"
+        done
+        [ -n "$v_name" ]     && name="$v_name"
+        [ -n "$v_status" ]   && status_v="$v_status"
+        [ -n "$v_progress" ] && progress="$v_progress"
+      fi
+
+      if ! $plans_header_printed; then
+        section "plans"
+        plans_header_printed=true
+      fi
+
+      case "$status_v" in
+        done)        badge="${C_GREEN}done${C_RESET}" ;;
+        in-progress|in_progress|active) badge="${C_YELLOW}in-progress${C_RESET}" ;;
+        blocked)     badge="${C_RED}blocked${C_RESET}" ;;
+        open|"")     badge="${C_DIM}open${C_RESET}" ;;
+        *)           badge="${C_DIM}${status_v}${C_RESET}" ;;
+      esac
+
+      extra=""
+      [ -n "$progress" ] && extra=" ${C_DIM}(${progress})${C_RESET}"
+      printf '  %-11b %s%s %s(%s)%s\n' "$badge" "$name" "$extra" "$C_DIM" "$base.md" "$C_RESET"
+    done
+    if ! $plans_found && [ "${CHE_STATUS_SHOW_EMPTY:-0}" = "1" ]; then
+      section "plans"
+      printf '  %s(no plans in .che/plans/)%s\n' "$C_DIM" "$C_RESET"
+    fi
+  fi
+fi
+
 printf '\n'

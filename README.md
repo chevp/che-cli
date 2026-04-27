@@ -136,11 +136,12 @@ Provider is selected via `CHE_PROVIDER`:
 ```sh
 CHE_PROVIDER=ollama       che commit        # default — local llama3.2
 CHE_PROVIDER=claude-code  che commit        # delegates to the `claude` CLI
+CHE_PROVIDER=copilot      che commit        # delegates to the `copilot` CLI (GitHub)
 ```
 
-Cloud LLMs are only reachable through their official CLIs (e.g. Claude Code's
-`claude` binary). `che` never handles API keys directly — auth is owned by
-the CLI you've installed.
+Cloud LLMs are only reachable through their official CLIs (Claude Code's
+`claude` binary, GitHub's `copilot` binary). `che` never handles API keys
+directly — auth is owned by the CLI you've installed.
 
 Configuration (all environment variables, all optional):
 
@@ -231,7 +232,7 @@ che-cli/
 │   └── ollama.http
 ├── lib/che/
 │   ├── platform.sh               # OS detection (darwin/windows/wsl/linux)
-│   ├── provider.sh               # provider router (ollama/claude-code)
+│   ├── provider.sh               # provider router (ollama/claude-code/copilot)
 │   ├── doctor.sh                 # `che doctor`
 │   ├── git/
 │   │   ├── check.sh
@@ -242,6 +243,9 @@ che-cli/
 │   ├── claude-code/
 │   │   ├── check.sh
 │   │   └── client.sh             # wraps the `claude` CLI binary
+│   ├── copilot/
+│   │   ├── check.sh
+│   │   └── client.sh             # wraps the `copilot` CLI binary
 │   └── docker/
 │       ├── check.sh
 │       └── client.sh

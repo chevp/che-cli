@@ -134,6 +134,28 @@ if (Test-Path $srcLib) {
     Write-Host "  [WARN] lib/che not found at $srcLib" -ForegroundColor Yellow
 }
 
+# Pin the install to the source repo's exact commit. `che ship` reads this
+# file to decide whether the running install is stale (see lib/che/self_update.sh).
+$installedSha      = 'unknown'
+$installedDescribe = 'unknown'
+try {
+    Push-Location $src
+    $sha = (& git rev-parse HEAD 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $sha) { $installedSha = $sha.Trim() }
+    $desc = (& git describe --tags --always --dirty 2>$null)
+    if ($LASTEXITCODE -eq 0 -and $desc) { $installedDescribe = $desc.Trim() }
+} catch { } finally { Pop-Location }
+$versionFile = Join-Path $libDir '.installed-version'
+$versionLines = @(
+    "source_repo=$src",
+    "installed_sha=$installedSha",
+    "installed_describe=$installedDescribe",
+    "installed_at=$([DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ'))"
+)
+# Use UTF-8 (no BOM) so bash can read this without surprises.
+[System.IO.File]::WriteAllLines($versionFile, $versionLines, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "  [OK]   lib/che/.installed-version" -ForegroundColor Green
+
 # ---------------------------------------------------------------------------
 # 2. Install runtime dependencies (Git, Python, Ollama, model).
 # ---------------------------------------------------------------------------

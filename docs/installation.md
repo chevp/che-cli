@@ -125,6 +125,17 @@ a fallback), set:
 export CHE_FORCE_CLAUDE_CODE=1
 ```
 
+### GitHub Copilot (cloud, via CLI)
+
+Install the
+[GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli)
+and sign in once with `copilot` itself; `che` shells out to that binary.
+
+```sh
+export CHE_PROVIDER=copilot
+che commit
+```
+
 For the local Ollama setup itself, follow the companion guide:
 **[cura-llm-local](https://chevp.github.io/cura-llm-native/)** — about
 five minutes from zero to a working `llama3.2` server.

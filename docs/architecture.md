@@ -22,8 +22,10 @@ lib/che/
   provider.sh                routes calls to the active provider
   ui.sh                      shared UI helpers (spinner)
   doctor.sh                  che doctor — runs all checks
+  status.sh                  che status (incl. issues, PRs, plans via gh)
+  issue.sh                   che issue (create / list / close via gh)
   git/
-    check.sh                 git availability check
+    check.sh                 git + gh availability checks
     commit.sh                che commit
     ship.sh                  che ship (recurses into submodules)
   ollama/
@@ -32,6 +34,9 @@ lib/che/
   claude-code/
     check.sh
     client.sh                wraps the `claude` CLI binary
+  copilot/
+    check.sh
+    client.sh                wraps the `copilot` CLI binary
   docker/
     check.sh
     client.sh

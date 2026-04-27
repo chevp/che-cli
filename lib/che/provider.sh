@@ -20,11 +20,11 @@ provider_load() {
   local p
   p="$(provider_active)"
   case "$p" in
-    ollama|claude-code)
+    ollama|claude-code|copilot)
       . "$CHE_PROVIDER_DIR/$p/client.sh"
       ;;
     *)
-      echo "che: unknown provider '$p' (valid: ollama, claude-code)" >&2
+      echo "che: unknown provider '$p' (valid: ollama, claude-code, copilot)" >&2
       return 1
       ;;
   esac
@@ -36,7 +36,7 @@ provider_ping() {
 
 # Best-effort: ensure the active provider's server is running locally.
 # For ollama, spawns `ollama serve` in the background if not already up.
-# For the claude-code subprocess there is nothing to start.
+# For CLI-wrapping providers (claude-code, copilot) there is nothing to start.
 # Returns 0 if the provider is reachable after the attempt, 1 otherwise.
 provider_ensure_running() {
   local p; p="$(provider_active)"
@@ -59,6 +59,7 @@ provider_active_model() {
   case "$p" in
     ollama)      printf '%s' "${CHE_OLLAMA_MODEL:-llama3.2}" ;;
     claude-code) printf '%s' "claude-code (CLI-managed)" ;;
+    copilot)     printf '%s' "copilot (CLI-managed)" ;;
   esac
 }
 

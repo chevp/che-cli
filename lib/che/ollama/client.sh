@@ -36,7 +36,10 @@ ollama_has_model() {
   local model="${1:-$CHE_OLLAMA_MODEL}"
   curl -sS --fail --connect-timeout 2 "$CHE_OLLAMA_HOST/api/tags" 2>/dev/null \
     | CHE_JSON_PREFIX="$model" _che_json_python -c 'import json,os,sys
-data=json.load(sys.stdin)
+raw=sys.stdin.read()
+if not raw.strip(): sys.exit(1)
+try: data=json.loads(raw)
+except (json.JSONDecodeError, ValueError): sys.exit(1)
 prefix=os.environ["CHE_JSON_PREFIX"]
 sys.exit(0 if any((m.get("name") or "").startswith(prefix) for m in data.get("models") or []) else 1)'
 }

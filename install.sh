@@ -63,6 +63,24 @@ find "$PREFIX/lib/che" -name "*.sh" -exec chmod 0755 {} +
 printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$PREFIX/bin/che"
 printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$PREFIX/lib/che/  (full tree)"
 
+# Pin the install to the source repo's exact commit. `che ship` reads this
+# file to decide whether the running install is stale (see lib/che/self_update.sh).
+if git -C "$SRC" rev-parse --git-dir >/dev/null 2>&1; then
+  _installed_sha="$(git -C "$SRC" rev-parse HEAD 2>/dev/null || printf unknown)"
+  _installed_describe="$(git -C "$SRC" describe --tags --always --dirty 2>/dev/null || printf unknown)"
+else
+  _installed_sha=unknown
+  _installed_describe=unknown
+fi
+{
+  printf 'source_repo=%s\n'        "$SRC"
+  printf 'installed_sha=%s\n'      "$_installed_sha"
+  printf 'installed_describe=%s\n' "$_installed_describe"
+  printf 'installed_at=%s\n'       "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%s)"
+} > "$PREFIX/lib/che/.installed-version"
+unset _installed_sha _installed_describe
+printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$PREFIX/lib/che/.installed-version"
+
 # ---------------------------------------------------------------------------
 # 2. Install runtime dependencies (git, python, ollama, etc.).
 # ---------------------------------------------------------------------------

@@ -31,9 +31,17 @@ sys.stdout.write(json.dumps(os.environ["CHE_JSON_IN"]))'
 # path syntax: dotted with optional [idx], e.g. ".response",
 # ".choices[0].message.content". Prints the value as a string (empty if
 # missing or null), matching jq -r "<path> // empty". Always exits 0.
+# Empty/invalid JSON on stdin (e.g. when the upstream curl got a 404 and
+# fed us nothing) yields empty output instead of a Python traceback.
 json_extract() {
   CHE_JSON_PATH="$1" _che_json_python -c 'import json,os,re,sys
-data=json.load(sys.stdin)
+raw=sys.stdin.read()
+if not raw.strip():
+    sys.exit(0)
+try:
+    data=json.loads(raw)
+except (json.JSONDecodeError, ValueError):
+    sys.exit(0)
 cur=data
 for name,idx in re.findall(r"\.([A-Za-z_][\w]*)|\[(\d+)\]", os.environ["CHE_JSON_PATH"]):
     try:

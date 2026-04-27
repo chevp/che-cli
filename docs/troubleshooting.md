@@ -76,6 +76,22 @@ Install Claude Code from <https://docs.claude.com/claude-code> and run
 
 ---
 
+## `che commit: provider 'copilot' not reachable`
+
+Same root cause, different binary: the `copilot` CLI isn't on `$PATH`.
+
+```sh
+command -v copilot              # is the binary on PATH?
+copilot --version               # confirm install
+che doctor copilot              # full diagnostics
+```
+
+Install the GitHub Copilot CLI from
+<https://docs.github.com/en/copilot/how-tos/use-copilot-agents/use-copilot-cli>
+and sign in once with `copilot` to complete login.
+
+---
+
 ## `che commit: LLM returned empty message`
 
 The provider responded but the parsed message was blank. Two common causes:
@@ -124,8 +140,9 @@ trivial changes). If the model ignores the format, three things to try:
 
 - Use `--edit` to open `$EDITOR` with the message pre-filled:
   `che commit --edit`.
-- Switch to Claude Code (`CHE_PROVIDER=claude-code`) — it follows format
-  instructions much more reliably than small local models.
+- Switch to a CLI-backed cloud provider (`CHE_PROVIDER=claude-code` or
+  `CHE_PROVIDER=copilot`) — they follow format instructions much more
+  reliably than small local models.
 - Run `--dry-run` repeatedly to sample outputs and see whether the issue
   is the prompt or the model.
 
