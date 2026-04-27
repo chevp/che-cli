@@ -81,6 +81,23 @@ che issue close 42 --reason "fixed in v1.4"     # close issue with comment
 
 Requires `gh` installed and authenticated (`gh auth login`).
 
+The drafted issue body always begins with a small YAML frontmatter block:
+
+```markdown
+---
+status: open            # open | in-progress | blocked
+progress: 0%            # free-form, e.g. "0%" or "0/3 steps"
+---
+
+<rest of the body>
+```
+
+`che issue list` and `che status` parse that block and render the same
+status badge as plans — so you can track progress finer than GitHub's
+open/closed without inventing labels. Edit the frontmatter directly in
+the issue body to update status. GitHub's closed state always wins:
+closed issues never appear in the list, regardless of frontmatter.
+
 ### `che status`
 
 One-screen overview of the current repo + che-cli configuration:
@@ -89,10 +106,17 @@ One-screen overview of the current repo + che-cli configuration:
 - git: branch, upstream, ahead/behind, working-tree state, short status
 - submodules with sync state
 - last 5 commits
-- **issues** — top 5 open GitHub issues for this repo (via `gh`)
+- **issues** — top 5 open GitHub issues for this repo (via `gh`), with a
+  status badge parsed from the issue body's YAML frontmatter (when present)
 - **pull requests** — top 5 open PRs with draft / review-decision state
 - **plans** — local `.che/plans/*.md` files with status badge
   (`open` / `in-progress` / `done` / `blocked`)
+
+Issues, plans, and (after refactor) anything else that carries a
+frontmatter block share a single parser at
+[`lib/che/frontmatter.sh`](https://github.com/chevp/che-cli/blob/main/lib/che/frontmatter.sh)
+and render through one common `frontmatter_status_badge` helper —
+add a new state once, it shows up everywhere.
 
 ```sh
 che status            # full overview, including GitHub + plans

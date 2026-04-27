@@ -15,6 +15,7 @@ set -uo pipefail
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$LIB_DIR/provider.sh"
 . "$LIB_DIR/ui.sh"
+. "$LIB_DIR/frontmatter.sh"
 
 if [ -t 1 ]; then
   C_BOLD=$'\033[1m'; C_DIM=$'\033[2m'
@@ -65,10 +66,12 @@ cmd_list() {
     esac
   done
 
+  # Body is base64-encoded so it can ride alongside other fields in a
+  # tab-separated row without newlines/tabs in the body breaking parsing.
   local rows
   rows="$(gh issue list --state open --limit "$limit" \
-            --json number,title,labels,assignees \
-            --jq '.[] | "\(.number)\t\(.title)\t\([.labels[].name]|join(","))\t\([.assignees[].login]|join(","))"' \
+            --json number,title,labels,assignees,body \
+            --jq '.[] | "\(.number)\t\(.title)\t\([.labels[].name]|join(","))\t\([.assignees[].login]|join(","))\t\(.body|@base64)"' \
             2>/dev/null)" || {
     echo "che issue list: 'gh issue list' failed — is this a GitHub repo?" >&2
     exit 1
@@ -79,12 +82,24 @@ cmd_list() {
     return 0
   fi
 
-  printf '%s\n' "$rows" | while IFS=$'\t' read -r num title labels assignees; do
+  while IFS=$'\t' read -r num title labels assignees body_b64; do
+    local body="" badge_str
+    if [ -n "$body_b64" ]; then
+      body="$(printf '%s' "$body_b64" | base64 -d 2>/dev/null || true)"
+    fi
+    FM_NAME=""; FM_STATUS=""; FM_PROGRESS=""
+    if [ -n "$body" ]; then
+      frontmatter_parse_stdin <<<"$body"
+    fi
+    badge_str="$(frontmatter_status_badge "$FM_STATUS")"
+
     local meta=""
-    [ -n "$labels" ]    && meta="${meta} ${C_DIM}[${labels}]${C_RESET}"
-    [ -n "$assignees" ] && meta="${meta} ${C_DIM}@${assignees}${C_RESET}"
-    printf '  %s#%s%s %s%s\n' "$C_CYAN" "$num" "$C_RESET" "$title" "$meta"
-  done
+    [ -n "$FM_PROGRESS" ] && meta="${meta} ${C_DIM}(${FM_PROGRESS})${C_RESET}"
+    [ -n "$labels" ]      && meta="${meta} ${C_DIM}[${labels}]${C_RESET}"
+    [ -n "$assignees" ]   && meta="${meta} ${C_DIM}@${assignees}${C_RESET}"
+    printf '  %s#%s%s %-11b %s%s\n' \
+      "$C_CYAN" "$num" "$C_RESET" "$badge_str" "$title" "$meta"
+  done <<<"$rows"
 }
 
 cmd_close() {
@@ -176,24 +191,38 @@ $hints"
   read -r -d '' prompt <<EOF || true
 You are drafting a GitHub issue.
 
-Format:
+Format (exact):
 <title>
 <blank line>
-<body>
+---
+status: <one of: open | in-progress | blocked>
+progress: <free-form, e.g. "0%" or "0/3 steps">
+---
+
+<body in GitHub-flavored markdown>
 
 Rules:
 - Reply with ONLY the issue text. No quotes, no preamble, no explanation.
 - Title: one line, 4–72 characters, imperative or descriptive (e.g.
   "Fix race in workflow loader", "Document plans/ directory layout").
   Never start with a verb in past tense.
-- Body: GitHub-flavored markdown. Use sections only when relevant:
+- The frontmatter block (between two '---' lines) is REQUIRED and must
+  appear right after the blank line under the title, before any body.
+  - 'status' default: 'open' for new bugs/features.
+  - Use 'in-progress' only if the user description clearly says work
+    has started (e.g. "I started rewriting X", "currently fixing Y").
+  - Use 'blocked' only if the description names an external dependency
+    that prevents progress.
+  - 'progress' default: '0%' (or '0/N' if N steps are obvious from
+    a checklist further down in the body).
+- Body: concise GitHub-flavored markdown. Use sections only when relevant:
   ## Context  — what / where in the code
   ## Steps to reproduce  — only for bugs
   ## Expected / Actual  — only for bugs
   ## Proposal  — for features / refactors
-- Keep it concise. 4-15 lines is typical. Avoid filler.
-- If the user description is unclear, mention that explicitly at the top
-  of the body so a human can refine it.
+- Keep it concise. 4-15 body lines is typical. Avoid filler.
+- If the user description is unclear, say so explicitly in the first
+  body line so a human can refine it.
 
 Input:
 $seed

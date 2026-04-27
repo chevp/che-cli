@@ -21,6 +21,7 @@ lib/che/
   platform.sh                OS detection: darwin | windows | wsl | linux
   provider.sh                routes calls to the active provider
   ui.sh                      shared UI helpers (spinner)
+  frontmatter.sh             YAML frontmatter parser shared by status / issue
   doctor.sh                  che doctor — runs all checks
   status.sh                  che status (incl. issues, PRs, plans via gh)
   issue.sh                   che issue (create / list / close via gh)

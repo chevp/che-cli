@@ -7,6 +7,7 @@ set -uo pipefail
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$LIB_DIR/platform.sh"
 . "$LIB_DIR/provider.sh"
+. "$LIB_DIR/frontmatter.sh"
 provider_load 2>/dev/null || true
 
 if [ -t 1 ]; then
@@ -155,8 +156,8 @@ if ! $short && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; 
     timeout_cmd=""
     command -v timeout >/dev/null 2>&1 && timeout_cmd="timeout $gh_timeout"
     $timeout_cmd gh issue list --state open --limit 5 \
-      --json number,title,labels,assignees \
-      --jq '.[] | "\(.number)\t\(.title)\t\([.labels[].name]|join(","))\t\([.assignees[].login]|join(","))"' \
+      --json number,title,labels,assignees,body \
+      --jq '.[] | "\(.number)\t\(.title)\t\([.labels[].name]|join(","))\t\([.assignees[].login]|join(","))\t\(.body|@base64)"' \
       >"$issues_tmp" 2>/dev/null
   ) &
   issues_pid=$!
@@ -174,14 +175,26 @@ if ! $short && command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; 
   wait "$issues_pid" 2>/dev/null || true
   wait "$prs_pid"    2>/dev/null || true
 
-  # issues
+  # issues — parse status/progress from frontmatter at the body's head, if any
   section "issues"
   if [ -s "$issues_tmp" ]; then
-    while IFS=$'\t' read -r num title labels assignees; do
+    while IFS=$'\t' read -r num title labels assignees body_b64; do
+      body=""
+      if [ -n "$body_b64" ]; then
+        body="$(printf '%s' "$body_b64" | base64 -d 2>/dev/null || true)"
+      fi
+      FM_NAME=""; FM_STATUS=""; FM_PROGRESS=""
+      if [ -n "$body" ]; then
+        frontmatter_parse_stdin <<<"$body"
+      fi
+      badge_str="$(frontmatter_status_badge "$FM_STATUS")"
+
       meta=""
-      [ -n "$labels" ]    && meta="${meta} ${C_DIM}[${labels}]${C_RESET}"
-      [ -n "$assignees" ] && meta="${meta} ${C_DIM}@${assignees}${C_RESET}"
-      printf '  %s#%s%s %s%s\n' "$C_CYAN" "$num" "$C_RESET" "$title" "$meta"
+      [ -n "$FM_PROGRESS" ] && meta="${meta} ${C_DIM}(${FM_PROGRESS})${C_RESET}"
+      [ -n "$labels" ]      && meta="${meta} ${C_DIM}[${labels}]${C_RESET}"
+      [ -n "$assignees" ]   && meta="${meta} ${C_DIM}@${assignees}${C_RESET}"
+      printf '  %s#%s%s %-11b %s%s\n' \
+        "$C_CYAN" "$num" "$C_RESET" "$badge_str" "$title" "$meta"
     done <"$issues_tmp"
   else
     printf '  %s(none open)%s\n' "$C_DIM" "$C_RESET"
@@ -229,45 +242,18 @@ if ! $short; then
       [ "$base" = "README" ] && continue
       plans_found=true
 
-      name="$base"; status_v=""; progress=""
-
-      # Parse YAML frontmatter (between two leading '---' lines). We only
-      # extract three fields, so a tiny awk is enough — no python dep here.
-      if head -n 1 "$plan_file" 2>/dev/null | grep -q '^---[[:space:]]*$'; then
-        fm="$(awk 'NR==1 && /^---[[:space:]]*$/ {inside=1; next}
-                   inside && /^---[[:space:]]*$/ {exit}
-                   inside {print}' "$plan_file")"
-        v_name="$(printf '%s\n' "$fm" | awk -F: '/^name:/ {sub(/^name:[[:space:]]*/,""); print; exit}')"
-        v_status="$(printf '%s\n' "$fm" | awk -F: '/^status:/ {sub(/^status:[[:space:]]*/,""); print; exit}')"
-        v_progress="$(printf '%s\n' "$fm" | awk -F: '/^progress:/ {sub(/^progress:[[:space:]]*/,""); print; exit}')"
-        # Strip surrounding quotes and trailing CR/whitespace.
-        for var in v_name v_status v_progress; do
-          val="${!var}"
-          val="${val%$'\r'}"
-          val="${val%\"}"; val="${val#\"}"
-          val="${val%\'}"; val="${val#\'}"
-          printf -v "$var" '%s' "$val"
-        done
-        [ -n "$v_name" ]     && name="$v_name"
-        [ -n "$v_status" ]   && status_v="$v_status"
-        [ -n "$v_progress" ] && progress="$v_progress"
-      fi
+      FM_NAME=""; FM_STATUS=""; FM_PROGRESS=""
+      frontmatter_parse_file "$plan_file"
+      name="${FM_NAME:-$base}"
 
       if ! $plans_header_printed; then
         section "plans"
         plans_header_printed=true
       fi
 
-      case "$status_v" in
-        done)        badge="${C_GREEN}done${C_RESET}" ;;
-        in-progress|in_progress|active) badge="${C_YELLOW}in-progress${C_RESET}" ;;
-        blocked)     badge="${C_RED}blocked${C_RESET}" ;;
-        open|"")     badge="${C_DIM}open${C_RESET}" ;;
-        *)           badge="${C_DIM}${status_v}${C_RESET}" ;;
-      esac
-
+      badge="$(frontmatter_status_badge "$FM_STATUS")"
       extra=""
-      [ -n "$progress" ] && extra=" ${C_DIM}(${progress})${C_RESET}"
+      [ -n "$FM_PROGRESS" ] && extra=" ${C_DIM}(${FM_PROGRESS})${C_RESET}"
       printf '  %-11b %s%s %s(%s)%s\n' "$badge" "$name" "$extra" "$C_DIM" "$base.md" "$C_RESET"
     done
     if ! $plans_found && [ "${CHE_STATUS_SHOW_EMPTY:-0}" = "1" ]; then
