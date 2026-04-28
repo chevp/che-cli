@@ -88,9 +88,9 @@ Format:
 
 Rules:
 - Reply with ONLY the commit message. No quotes, no explanation, no preamble.
-- Do NOT use markdown code fences (\`\`\`) anywhere in your reply.
-- Title: one line, at least 4 words and max 72 characters, imperative mood starting with a verb (e.g. "add", "fix", "refactor"). Never a single word.
-- Body: 2-5 bullets, each starting with "- ", describing the important changes.
+- Output PLAIN TEXT only. No markdown formatting of any kind: no headers (#, ##), no bold (**X**), no italics, no code fences (\`\`\`), no nested lists.
+- Title: one line, at least 4 words and max 72 characters, imperative mood starting with a verb (e.g. "add", "fix", "refactor"). Never a single word. The title must NOT be wrapped in ** or any other markup.
+- Body: 2-5 bullets, each starting with "- " (dash space, never "* "), describing the important changes.
 - Each bullet should be concise (max ~100 characters) and focus on what changed and why.
 - Skip the body only if the change is trivial (e.g. typo fix, single-line tweak).
 - If multiple unrelated changes, the title summarizes the dominant one; bullets cover the rest.
@@ -125,11 +125,17 @@ if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model)
   [ -s "$err_tmp" ] && cat "$err_tmp" >&2
   raw="$(cat "$out_tmp")"
   msg="$(printf '%s\n' "$raw" | awk '
-    # Strip markdown code-fence lines (```, ```plain, etc.). Small models
-    # often wrap output in fences despite being told not to; if the closing
-    # fence gets cut off by token limits, it lands in the commit object.
+    # Strip markdown formatting that small models emit despite being told not
+    # to: fence lines, ATX headers (#), bold markers (**), and "* " bullets
+    # (normalized to "- "). Underscores are left alone since they commonly
+    # appear in identifiers a commit message might reference (e.g. __init__).
     /^[[:space:]]*```/ { next }
-    { print }
+    {
+      sub(/^[[:space:]]*#+[[:space:]]+/, "")
+      gsub(/\*\*/, "")
+      sub(/^\*[[:space:]]+/, "- ")
+      print
+    }
   ' | awk '
     NF && !seen { seen=1 }
     seen { buf[++n]=$0 }
