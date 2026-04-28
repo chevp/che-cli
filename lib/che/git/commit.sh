@@ -88,6 +88,7 @@ Format:
 
 Rules:
 - Reply with ONLY the commit message. No quotes, no explanation, no preamble.
+- Do NOT use markdown code fences (\`\`\`) anywhere in your reply.
 - Title: one line, at least 4 words and max 72 characters, imperative mood starting with a verb (e.g. "add", "fix", "refactor"). Never a single word.
 - Body: 2-5 bullets, each starting with "- ", describing the important changes.
 - Each bullet should be concise (max ~100 characters) and focus on what changed and why.
@@ -124,6 +125,12 @@ if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model)
   [ -s "$err_tmp" ] && cat "$err_tmp" >&2
   raw="$(cat "$out_tmp")"
   msg="$(printf '%s\n' "$raw" | awk '
+    # Strip markdown code-fence lines (```, ```plain, etc.). Small models
+    # often wrap output in fences despite being told not to; if the closing
+    # fence gets cut off by token limits, it lands in the commit object.
+    /^[[:space:]]*```/ { next }
+    { print }
+  ' | awk '
     NF && !seen { seen=1 }
     seen { buf[++n]=$0 }
     END {
