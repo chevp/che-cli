@@ -323,15 +323,23 @@ function Start-Ollama-Server {
         Write-Fail "could not start 'ollama serve': $($_.Exception.Message)"
         return $false
     }
-    for ($i = 0; $i -lt 10; $i++) {
+    # Cold-start can be slow on Windows -- ollama performs GPU/CUDA probes on
+    # the first launch after install. 10s wasn't enough; 30s is.
+    $timeout = 30
+    Write-Host -NoNewline "         waiting up to ${timeout}s for $OllamaHost"
+    for ($i = 0; $i -lt $timeout; $i++) {
         Start-Sleep -Seconds 1
         if (Test-Ollama-Server) {
-            Write-Ok "ollama server started at $OllamaHost"
+            Write-Host ""
+            Write-Ok "ollama server started at $OllamaHost (after $($i + 1)s)"
             return $true
         }
+        Write-Host -NoNewline "."
     }
-    Write-Fail "could not reach $OllamaHost after starting 'ollama serve'"
-    Write-Info "start it manually: ollama serve"
+    Write-Host ""
+    Write-Fail "could not reach $OllamaHost after ${timeout}s"
+    Write-Info "the autostart shortcut will bring it up at next login,"
+    Write-Info "or start it manually now: ollama serve"
     return $false
 }
 
