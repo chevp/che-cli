@@ -25,7 +25,7 @@ Usage:
   che config path               print the config file path
 
 Keys:
-  provider              ollama | claude-code | copilot   (default: claude-code)
+  provider              ollama | claude-code | copilot   (default: ollama)
   ollama_host           Ollama base URL                  (default: http://localhost:11434)
   ollama_model          Ollama model name                (default: llama3.2)
   max_diff_chars        diff truncation length           (default: 8000)

@@ -28,7 +28,7 @@ Usage:
 Where the log lives:
   <repo>/.git/che-last-error.log   (one per repo)
 
-Provider is the same one used by che commit (CHE_PROVIDER, default: claude-code).
+Provider is the same one used by che commit (CHE_PROVIDER, default: ollama).
 Run 'che doctor provider' to verify the provider is reachable.
 
 Docs: https://chevp.github.io/che-cli/

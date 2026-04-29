@@ -116,6 +116,12 @@ che commit --edit       # open $EDITOR with the message pre-filled
 che commit --yes        # skip the confirmation prompt
 ```
 
+If `git add` emits warnings (e.g. the classic `LF will be replaced by CRLF`
+on Windows), they are forwarded to the active LLM provider, which proposes a
+single safe `git config` command to fix the root cause. The suggestion is
+shown with diagnosis + reasoning and only applied after you confirm. Skip
+this with `CHE_FIX_WARNINGS=0`.
+
 ### `che ship` — recursive add + commit + push
 
 For the current repo **and every submodule** (depth-first, recursively):
@@ -152,6 +158,7 @@ Configuration (all environment variables, all optional):
 | `CHE_OLLAMA_MODEL`        | `llama3.2`                |
 | `CHE_MAX_DIFF_CHARS`      | `8000`                    |
 | `CHE_FORCE_CLAUDE_CODE`   | unset (set to `1` to always escalate) |
+| `CHE_FIX_WARNINGS`        | `1` (set to `0` to skip the LLM warning fixer) |
 
 If you don't have a local LLM running yet, follow
 [cura-llm-local](https://chevp.github.io/cura-llm-local/) — about five minutes.

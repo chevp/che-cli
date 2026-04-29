@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Provider router. Sources the active provider's client.sh and exposes a
 # uniform interface (provider_ping, provider_generate, provider_has_model).
-# The active provider is selected via CHE_PROVIDER (default: claude-code).
+# The active provider is selected via CHE_PROVIDER (default: ollama).
 
 CHE_PROVIDER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 provider_active() {
-  printf '%s' "${CHE_PROVIDER:-claude-code}"
+  printf '%s' "${CHE_PROVIDER:-ollama}"
 }
 
 # Function names can't contain '-', so map the provider key to its prefix
@@ -72,7 +72,7 @@ _provider_load_claude_code() {
 }
 
 # provider_smart_generate <prompt> [--complex]
-# Routes simple tasks through the active provider (default: claude-code) and
+# Routes simple tasks through the active provider (default: ollama) and
 # escalates to the claude-code CLI when:
 #   - --complex was passed by the caller, OR
 #   - CHE_FORCE_CLAUDE_CODE=1 is set in the environment, OR

@@ -6,6 +6,7 @@ LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$LIB_DIR/provider.sh"
 . "$LIB_DIR/ui.sh"
 . "$LIB_DIR/git/push.sh"
+. "$LIB_DIR/git/warnings.sh"
 provider_load
 
 MAX_DIFF_CHARS="${CHE_MAX_DIFF_CHARS:-8000}"
@@ -35,9 +36,10 @@ Options:
   -h, --help      show this help
 
 Environment:
-  CHE_PROVIDER             claude-code (default) | ollama | copilot
+  CHE_PROVIDER             ollama (default) | claude-code | copilot
   CHE_OLLAMA_HOST/MODEL    Ollama config (default model: llama3.2)
   CHE_MAX_DIFF_CHARS       diff truncation (default: 8000)
+  CHE_FIX_WARNINGS         set to 0 to skip the LLM warning fixer (default: 1)
 
 Persistent settings: 'che config provider <name>' (saved to ~/.che/config).
 Requires: git, curl, python3 (or python), and a working LLM provider.
@@ -63,7 +65,15 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
   exit 1
 fi
 
-git add -A
+add_err_tmp="$(mktemp)"
+if ! git add -A 2>"$add_err_tmp"; then
+  rc=$?
+  [ -s "$add_err_tmp" ] && cat "$add_err_tmp" >&2
+  rm -f "$add_err_tmp"
+  exit "$rc"
+fi
+warnings_handle_interactive "$add_err_tmp" || cat "$add_err_tmp" >&2
+rm -f "$add_err_tmp"
 
 diff="$(git diff --cached --no-color)"
 if [ -z "$diff" ]; then

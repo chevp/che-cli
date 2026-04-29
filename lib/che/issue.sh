@@ -43,7 +43,7 @@ Notes:
   - The repo is determined by 'gh' from the local origin remote.
 
 Environment:
-  CHE_PROVIDER             claude-code (default) | ollama | copilot
+  CHE_PROVIDER             ollama (default) | claude-code | copilot
   CHE_MAX_DIFF_CHARS       diff truncation for the create prompt (default: 4000)
 EOF
 }

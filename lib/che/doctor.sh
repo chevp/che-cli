@@ -90,10 +90,10 @@ Targets:
   claude-code  Claude Code CLI (\`claude\` binary) — used as escalation target
   copilot      GitHub Copilot CLI (\`copilot\` binary)
   workflow     yq (mikefarah Go variant) for che workflow / che run
-  provider     only the currently selected provider (CHE_PROVIDER, default: claude-code)
+  provider     only the currently selected provider (CHE_PROVIDER, default: ollama)
 
 Environment:
-  CHE_PROVIDER             claude-code (default) | ollama | copilot
+  CHE_PROVIDER             ollama (default) | claude-code | copilot
   CHE_OLLAMA_HOST/MODEL    Ollama config
   CHE_FORCE_CLAUDE_CODE=1  always escalate provider_smart_generate to claude-code
 
