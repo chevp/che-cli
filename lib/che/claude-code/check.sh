@@ -5,9 +5,9 @@ CHECK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$CHECK_DIR/platform.sh"
 . "$CHECK_DIR/claude-code/client.sh"
 
-type ok   >/dev/null 2>&1 || ok()   { printf "  ✓ %s\n" "$1"; }
-type fail >/dev/null 2>&1 || fail() { printf "  ✗ %s\n" "$1"; }
-type info >/dev/null 2>&1 || info() { printf "    %s\n" "$1"; }
+type ok   >/dev/null 2>&1 || ok()   { printf "  %s\n" "$1"; }
+type fail >/dev/null 2>&1 || fail() { printf "  error: %s\n" "$1"; }
+type info >/dev/null 2>&1 || info() { printf "  hint: %s\n" "$1"; }
 
 claude_code_check() {
   if claude_code_ping; then

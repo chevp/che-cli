@@ -12,9 +12,11 @@ if [ -t 1 ]; then
 else
   C_GREEN=""; C_RED=""; C_DIM=""; C_RESET=""
 fi
-ok()   { printf "  ${C_GREEN}✓${C_RESET} %s\n" "$1"; }
-fail() { printf "  ${C_RED}✗${C_RESET} %s\n" "$1"; }
-info() { printf "    ${C_DIM}%s${C_RESET}\n" "$1"; }
+# Git-style status lines: plain text for ok, `error:` and `hint:` prefixes for
+# problems. No ✓/✗ icons — matches `git status` / `git push` output style.
+ok()   { printf "  %s\n" "$1"; }
+fail() { printf "  ${C_RED}error:${C_RESET} %s\n" "$1"; }
+info() { printf "  ${C_DIM}hint:${C_RESET} %s\n" "$1"; }
 
 . "$LIB_DIR/git/check.sh"
 . "$LIB_DIR/docker/check.sh"
@@ -29,7 +31,6 @@ run_section() {
   local name="$1"; shift
   printf '%s:\n' "$name"
   "$@" || true
-  printf '\n'
 }
 
 active_provider_check() {
@@ -95,6 +96,8 @@ Environment:
   CHE_PROVIDER             ollama (default) | claude-code | copilot
   CHE_OLLAMA_HOST/MODEL    Ollama config
   CHE_FORCE_CLAUDE_CODE=1  always escalate provider_smart_generate to claude-code
+
+Persistent settings: 'che config provider <name>' (saved to ~/.che/config).
 EOF
     ;;
   *)

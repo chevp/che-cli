@@ -8,9 +8,9 @@ CHECK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$CHECK_DIR/ollama/client.sh"
 
 # Fallback formatters if doctor.sh hasn't loaded its own.
-type ok   >/dev/null 2>&1 || ok()   { printf "  ✓ %s\n" "$1"; }
-type fail >/dev/null 2>&1 || fail() { printf "  ✗ %s\n" "$1"; }
-type info >/dev/null 2>&1 || info() { printf "    %s\n" "$1"; }
+type ok   >/dev/null 2>&1 || ok()   { printf "  %s\n" "$1"; }
+type fail >/dev/null 2>&1 || fail() { printf "  error: %s\n" "$1"; }
+type info >/dev/null 2>&1 || info() { printf "  hint: %s\n" "$1"; }
 
 ollama_install_hint() {
   case "$CHE_OS" in

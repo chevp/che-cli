@@ -39,6 +39,7 @@ Environment:
   CHE_OLLAMA_HOST/MODEL    Ollama config (default model: llama3.2)
   CHE_MAX_DIFF_CHARS       diff truncation (default: 8000)
 
+Persistent settings: 'che config provider <name>' (saved to ~/.che/config).
 Requires: git, curl, python3 (or python), and a working LLM provider.
 Run 'che doctor' to verify.
 EOF
