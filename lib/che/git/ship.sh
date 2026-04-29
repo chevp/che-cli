@@ -63,10 +63,12 @@ if [ -f "$repo_root/.gitmodules" ]; then
     sm_abs="$repo_root/$sm_path"
     [ -e "$sm_abs/.git" ] || continue
 
-    printf '\n── submodule: %s ──\n' "$sm_path"
-
+    # The recursive `che ship` below prints its own per-repo header (or compact
+    # clean line), so we skip a parent-side "── submodule: X ──" header here to
+    # avoid duplicate context. --quiet suppresses "Already up to date." noise;
+    # errors still surface.
     if git -C "$sm_abs" symbolic-ref -q HEAD >/dev/null; then
-      git -C "$sm_abs" pull --ff-only \
+      git -C "$sm_abs" pull --ff-only --quiet \
         || echo "che ship: pull failed in $sm_path (continuing)"
     else
       echo "che ship: $sm_path is in detached HEAD, skipping pull"
@@ -183,9 +185,9 @@ if [ -f "$marker" ]; then
 fi
 
 # --- default: existing behavior ---
-printf '\n── repo: %s ──\n' "$(basename "$repo_root")"
 
-# Check if HEAD is detached and recover automatically
+# Recover from detached HEAD before deciding whether the tree is "clean", so
+# detached-HEAD recovery still runs even on a no-op ship.
 if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   detached_commit="$(git -C "$repo_root" rev-parse HEAD)"
 
@@ -214,6 +216,15 @@ if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
     echo "che ship: detached HEAD at $detached_commit (no branch contains this commit)"
   fi
 fi
+
+# Compact path: nothing in the working tree → one-line status, skip commit.sh.
+# Verbose "── repo: X ──" header is reserved for repos that actually do work.
+if [ -z "$(git -C "$repo_root" status --porcelain 2>/dev/null)" ]; then
+  printf '%s: clean\n' "$(basename "$repo_root")"
+  _ship_finish 0
+fi
+
+printf '\n── repo: %s ──\n' "$(basename "$repo_root")"
 
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   bash "$LIB_DIR/git/commit.sh" --push --yes
