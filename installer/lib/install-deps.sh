@@ -48,11 +48,32 @@ if [ -t 1 ]; then
 else
   C_GREEN=""; C_RED=""; C_YELLOW=""; C_CYAN=""; C_DIM=""; C_BOLD=""; C_RESET=""
 fi
-ok()    { printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$1"; }
+
+# Compact mode: ok() and step() accumulate into _deps_items / _deps_cat
+# instead of printing per-line. fail()/warn()/info() still print immediately
+# because failures are signal, not noise. CHE_VERBOSE=1 restores per-item output.
+: "${CHE_VERBOSE:=0}"
+_deps_cat=""
+_deps_items=""        # space-separated "cat:item" tokens; categories preserved by first-occurrence order
+
+step() {
+  if [ "$CHE_VERBOSE" = "1" ]; then
+    printf "\n${C_BOLD}${C_CYAN}==>${C_RESET} ${C_BOLD}%s${C_RESET}\n" "$1"
+  fi
+  # Use the first word of the section title as the category label.
+  _deps_cat="$(printf '%s' "$1" | awk '{print tolower($1)}')"
+}
+ok() {
+  if [ "$CHE_VERBOSE" = "1" ]; then
+    printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$1"
+  fi
+  # Replace internal whitespace with U+00A0 so "name 1.2.3" stays one token.
+  local item; item="$(printf '%s' "$1" | sed 's/ /\xc2\xa0/g')"
+  _deps_items="$_deps_items $_deps_cat:$item"
+}
 fail()  { printf "  ${C_RED}\xe2\x9c\x97${C_RESET} %s\n" "$1"; }
 warn()  { printf "  ${C_YELLOW}!${C_RESET} %s\n" "$1"; }
 info()  { printf "    ${C_DIM}%s${C_RESET}\n" "$1"; }
-step()  { printf "\n${C_BOLD}${C_CYAN}==>${C_RESET} ${C_BOLD}%s${C_RESET}\n" "$1"; }
 
 confirm() {
   # confirm "Question text"  -> 0 (yes) / 1 (no). Defaults to yes.
@@ -162,11 +183,22 @@ pm_pkg_for() {
   esac
 }
 
+_tool_version() {
+  # Best-effort short-version extraction for common CLIs.
+  case "$1" in
+    git)  git --version 2>/dev/null | awk '{print $3; exit}' ;;
+    curl) curl --version 2>/dev/null | awk 'NR==1{print $2}' ;;
+    gh)   gh --version 2>/dev/null | awk 'NR==1{print $3}' ;;
+    *)    "$1" --version 2>/dev/null | head -n1 | awk '{print $NF}' ;;
+  esac
+}
+
 ensure_tool() {
   # ensure_tool <command-name> <logical-package-name> [reason]
   local cmd="$1" logical="$2" reason="${3:-}"
   if command -v "$cmd" >/dev/null 2>&1; then
-    ok "$cmd already installed"
+    local v; v="$(_tool_version "$cmd")"
+    ok "${cmd}${v:+ $v}"
     return 0
   fi
   if [ "$CHE_NO_DEPS" = "1" ]; then
@@ -195,7 +227,8 @@ ensure_tool() {
   # shellcheck disable=SC2086
   if pm_install $pkgs; then
     if command -v "$cmd" >/dev/null 2>&1; then
-      ok "installed $cmd"
+      local v; v="$(_tool_version "$cmd")"
+      ok "${cmd}${v:+ $v}"
       return 0
     fi
     warn "$pkgs installed but $cmd still not on PATH"
@@ -209,7 +242,7 @@ ensure_tool() {
 # Python + PyYAML
 # ---------------------------------------------------------------------------
 ensure_python() {
-  step "Python (required for che workflow / che run)"
+  # Stays in the "core" category — no separate step header.
   local py=""
   for cand in python3 python; do
     if command -v "$cand" >/dev/null 2>&1 && "$cand" -c '' >/dev/null 2>&1; then
@@ -220,11 +253,11 @@ ensure_python() {
     ensure_tool python3 python "needed for che workflow / che run" || return 1
     py="python3"
   else
-    ok "$py ($("$py" -c 'import sys;print(sys.version.split()[0])' 2>/dev/null))"
+    ok "$py $("$py" -c 'import sys;print(sys.version.split()[0])' 2>/dev/null)"
   fi
 
   if "$py" -c 'import yaml' 2>/dev/null; then
-    ok "PyYAML present ($("$py" -c 'import yaml;print(yaml.__version__)' 2>/dev/null))"
+    ok "PyYAML $("$py" -c 'import yaml;print(yaml.__version__)' 2>/dev/null)"
     return 0
   fi
   if [ "$CHE_NO_DEPS" = "1" ]; then
@@ -240,7 +273,7 @@ ensure_python() {
   case "$CHE_PM" in
     apt-get)
       pm_install python3-yaml >/dev/null 2>&1 && {
-        ok "installed python3-yaml"; return 0;
+        ok "PyYAML"; return 0;
       }
       ;;
   esac
@@ -252,7 +285,7 @@ ensure_python() {
   fi
   # shellcheck disable=SC2086
   if "$py" -m pip $pip_args; then
-    ok "installed PyYAML via pip --user"
+    ok "PyYAML"
     return 0
   fi
   fail "pip install pyyaml failed"
@@ -368,32 +401,48 @@ ensure_ollama() {
 # ---------------------------------------------------------------------------
 # Top-level orchestration
 # ---------------------------------------------------------------------------
-che_install_deps() {
-  printf "${C_BOLD}che-cli — installing dependencies${C_RESET}\n"
-  printf "  ${C_DIM}os: %s   pkg-manager: %s   model: %s${C_RESET}\n" \
-    "$CHE_OS" "$CHE_PM" "$CHE_OLLAMA_MODEL"
+_deps_emit_summary() {
+  # Emit one line per category in first-seen order: "core   item · item · item"
+  [ -z "${_deps_items# }" ] && return 0
+  local seen=" " cat tok rest
+  set -- $_deps_items
+  for tok in "$@"; do
+    cat="${tok%%:*}"
+    case "$seen" in *" $cat "*) continue ;; esac
+    seen="$seen$cat "
+    rest=""
+    for t in "$@"; do
+      case "$t" in "$cat:"*)
+        local item="${t#*:}"; item="$(printf '%s' "$item" | sed 's/\xc2\xa0/ /g')"
+        rest="$rest · $item"
+      ;; esac
+    done
+    printf "${C_DIM}%-9s${C_RESET}${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" \
+      "$cat" "${rest# · }"
+  done
+}
 
+che_install_deps() {
   local rc=0
 
-  step "Core shell tools (git, curl)"
+  step "core"
   ensure_tool git  git  "che commit / che ship use git"          || rc=1
   ensure_tool curl curl "needed by ollama"                       || rc=1
-
   ensure_python || rc=1
 
   # gh is optional (used by `che flow` / `che done`). Only offer if missing.
   if ! command -v gh >/dev/null 2>&1; then
-    step "GitHub CLI (optional — used by 'che flow' / 'che done')"
+    step "optional"
     ensure_tool gh gh "optional, enables PR automation" || true
   fi
 
+  step "runtime"
   ensure_ollama || rc=1
 
-  if [ "$rc" = "0" ]; then
-    printf "\n${C_GREEN}${C_BOLD}all dependencies ready${C_RESET}\n"
-  else
-    printf "\n${C_YELLOW}${C_BOLD}some dependencies were skipped or failed${C_RESET}\n"
-    printf "  ${C_DIM}run 'che doctor' afterwards to see what's still missing${C_RESET}\n"
+  _deps_emit_summary
+
+  if [ "$rc" != "0" ]; then
+    printf "${C_YELLOW}some deps skipped or failed — run 'che doctor' for details${C_RESET}\n"
   fi
   return $rc
 }
