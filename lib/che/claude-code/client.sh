@@ -58,14 +58,19 @@ PY
 # "Execution error" to stdout and exits 0 (e.g. when a plugin config fails
 # Zod validation). When that happens we try to auto-repair the most common
 # cause (malformed installed_plugins.json) and retry once before giving up.
+#
+# --tools "" disables every tool (incl. AskUserQuestion). All callers — commit
+# messages, change warnings, issue summaries — are pure text generation; if
+# Claude tried AskUserQuestion in -p mode there is no callback path, so the
+# subprocess would hang waiting for input that never arrives.
 claude_code_generate() {
   local prompt="$1" out
   command -v claude >/dev/null 2>&1 || { echo "claude CLI not on PATH" >&2; return 1; }
-  out="$(printf '%s' "$prompt" | claude -p)"
+  out="$(printf '%s' "$prompt" | claude -p --tools "")"
   if _claude_code_is_execution_error "$out"; then
     if _claude_code_repair_plugins; then
       echo "claude-code: repaired malformed ~/.claude/plugins/installed_plugins.json (backup at .bak), retrying" >&2
-      out="$(printf '%s' "$prompt" | claude -p)"
+      out="$(printf '%s' "$prompt" | claude -p --tools "")"
     fi
     if _claude_code_is_execution_error "$out"; then
       echo "claude CLI returned 'Execution error' — run 'claude -p --output-format json \"hi\"' to inspect the underlying error" >&2

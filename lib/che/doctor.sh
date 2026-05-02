@@ -28,13 +28,22 @@ _verbose_info() { printf "  ${C_DIM}hint:${C_RESET} %s\n" "$1"; }
 : "${CHE_VERBOSE:=0}"
 _compact_buf=""
 _compact_cat=""
+_compact_problems=""   # accumulated fail/info lines for the current section
 
 ok() {
   if [ "$CHE_VERBOSE" = "1" ]; then _verbose_ok "$1"; return; fi
   _compact_buf="$_compact_buf · $1"
 }
-fail() { _verbose_fail "$1"; }   # always visible
-info() { _verbose_info "$1"; }   # always visible
+fail() {
+  if [ "$CHE_VERBOSE" = "1" ]; then _verbose_fail "$1"; return; fi
+  _compact_problems="$_compact_problems
+$(printf "  ${C_RED}error:${C_RESET} %s" "$1")"
+}
+info() {
+  if [ "$CHE_VERBOSE" = "1" ]; then _verbose_info "$1"; return; fi
+  _compact_problems="$_compact_problems
+$(printf "  ${C_DIM}hint:${C_RESET} %s" "$1")"
+}
 
 . "$LIB_DIR/git/check.sh"
 . "$LIB_DIR/docker/check.sh"
@@ -55,9 +64,16 @@ _run_compact() {
   local name="$1"; shift
   _compact_cat="$name"
   _compact_buf=""
+  _compact_problems=""
   "$@" || true
   if [ -n "$_compact_buf" ]; then
     printf "${C_DIM}%-9s${C_RESET}%s\n" "$name" "${_compact_buf# · }"
+    [ -n "$_compact_problems" ] && printf '%s\n' "${_compact_problems#$'\n'}"
+  elif [ -n "$_compact_problems" ]; then
+    # No successful items: anchor the category line with a red marker so the
+    # failure has a visible header instead of a blank label.
+    printf "${C_DIM}%-9s${C_RESET}${C_RED}missing${C_RESET}\n" "$name"
+    printf '%s\n' "${_compact_problems#$'\n'}"
   fi
 }
 

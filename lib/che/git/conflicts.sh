@@ -86,7 +86,10 @@ _conflicts_call_claude() {
   prompt="$(_conflicts_build_prompt "$file" "$hint")"
   err_tmp="$(mktemp)"
 
-  printf '%s' "$prompt" | claude -p >"$out_path" 2>"$err_tmp" &
+  # --tools "" disables every tool: the prompt asks for the resolved file
+  # content as plain text, and AskUserQuestion in -p mode would hang the
+  # subprocess (no callback path back to the parent shell).
+  printf '%s' "$prompt" | claude -p --tools "" >"$out_path" 2>"$err_tmp" &
   local pid=$!
   if ! ui_spin "$pid" "claude resolving $(basename "$file")"; then
     [ -s "$err_tmp" ] && cat "$err_tmp" >&2

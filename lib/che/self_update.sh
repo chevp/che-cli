@@ -136,24 +136,15 @@ che_self_update_check() {
   fi
 
   # ---- there's something to update — show diagnostic + prompt ----
-  printf '\n' >&2
-  _self_update_log "che-cli install is out of date"
-  printf '  source repo:    %s\n'  "$source_repo" >&2
-  printf '  installed:      %s\n'  "$(_self_update_short "$installed_sha")" >&2
-  printf '  source HEAD:    %s%s\n' \
-    "$(_self_update_short "$source_sha")" \
-    "$([ "$installed_sha" = "$source_sha" ] && printf ' (same)' || printf ' (differs)')" >&2
-  printf '  upstream HEAD:  %s%s\n' \
-    "$(_self_update_short "$upstream_sha")" \
-    "$([ "$source_sha" = "$upstream_sha" ] && printf ' (same)' || printf ' (differs)')" >&2
-
-  local action
+  local installed_short source_short upstream_short
+  installed_short="$(_self_update_short "$installed_sha")"
+  source_short="$(_self_update_short "$source_sha")"
+  upstream_short="$(_self_update_short "$upstream_sha")"
   if $source_stale; then
-    action="git pull --ff-only && install.sh --no-deps --yes"
+    _self_update_log "out of date  ${installed_short} → ${upstream_short}  (pull + reinstall)"
   else
-    action="install.sh --no-deps --yes"
+    _self_update_log "out of date  ${installed_short} → ${source_short}  (reinstall)"
   fi
-  printf '  action:         %s\n\n' "$action" >&2
 
   # CHE_AUTO_SELF_UPDATE=1 skips the prompt (for non-interactive use).
   local answer
@@ -172,17 +163,15 @@ che_self_update_check() {
   esac
 
   if $source_stale; then
-    _self_update_log "pulling $source_repo ..."
     if ! git -C "$source_repo" pull --ff-only --quiet; then
       _self_update_log "ff-only pull failed — resolve manually in $source_repo and rerun"
       return 0
     fi
   fi
 
-  _self_update_log "running installer (--no-deps --yes) ..."
-  if _self_update_run_installer "$source_repo"; then
-    _self_update_log "✓ updated to $(_self_update_short "$(git -C "$source_repo" rev-parse HEAD)")"
-  else
+  # The installer prints its own compact "che-cli installed → … (sha)" line —
+  # no separate "running" / "✓ updated" log lines needed.
+  if ! _self_update_run_installer "$source_repo"; then
     _self_update_log "installer reported errors — see output above"
   fi
   return 0
