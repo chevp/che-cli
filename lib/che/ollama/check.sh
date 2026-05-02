@@ -23,10 +23,11 @@ ollama_install_hint() {
 }
 
 ollama_check() {
-  local rc=0
+  local rc=0 ver=""
+  local host="${CHE_OLLAMA_HOST#*://}"
 
   if command -v ollama >/dev/null 2>&1; then
-    ok "ollama binary found"
+    ver="$(ollama --version 2>/dev/null | head -n1 | awk '{print $NF}')"
   else
     fail "ollama binary not found"
     ollama_install_hint
@@ -34,11 +35,11 @@ ollama_check() {
   fi
 
   if ollama_ping; then
-    ok "server responding at $CHE_OLLAMA_HOST"
+    ok "ollama${ver:+ $ver} · server@${host}"
   else
     info "no response at $CHE_OLLAMA_HOST — starting 'ollama serve' in the background…"
     if ollama_serve_start 10; then
-      ok "server started at $CHE_OLLAMA_HOST"
+      ok "ollama${ver:+ $ver} · server@${host}"
     else
       fail "could not reach $CHE_OLLAMA_HOST after starting 'ollama serve'"
       info "start it manually in another terminal: ollama serve"
@@ -47,7 +48,7 @@ ollama_check() {
   fi
 
   if ollama_has_model "$CHE_OLLAMA_MODEL"; then
-    ok "model available: $CHE_OLLAMA_MODEL"
+    ok "model:$CHE_OLLAMA_MODEL"
   else
     fail "model not pulled: $CHE_OLLAMA_MODEL"
     info "pull it: che init  (or: ollama pull $CHE_OLLAMA_MODEL)"

@@ -38,16 +38,18 @@ git_check() {
   fi
 
   if command -v gh >/dev/null 2>&1; then
-    ok "gh $(gh --version | awk 'NR==1{print $3}')  (required for che flow / che done)"
+    local ghver auth=""
+    ghver="$(gh --version | awk 'NR==1{print $3}')"
     if gh auth status >/dev/null 2>&1; then
-      ok "gh authenticated"
+      auth=" (auth)"
     else
       fail "gh not authenticated"
       info "run: gh auth login"
       rc=1
     fi
+    ok "gh ${ghver}${auth}"
   else
-    fail "gh not installed  (required for che flow / che done)"
+    fail "gh not installed (required for che flow / che done)"
     gh_install_hint
     rc=1
   fi

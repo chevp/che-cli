@@ -12,8 +12,8 @@ type info >/dev/null 2>&1 || info() { printf "  hint: %s\n" "$1"; }
 claude_code_check() {
   if claude_code_ping; then
     local ver
-    ver="$(claude --version 2>/dev/null | head -n 1)"
-    ok "claude CLI found${ver:+ ($ver)}"
+    ver="$(claude --version 2>/dev/null | head -n1 | awk '{print $1}')"
+    ok "claude${ver:+ $ver}"
   else
     fail "claude CLI not on PATH"
     info "install: https://docs.claude.com/claude-code"

@@ -297,7 +297,7 @@ ensure_python() {
 # ---------------------------------------------------------------------------
 ensure_ollama_binary() {
   if command -v ollama >/dev/null 2>&1; then
-    ok "ollama binary present ($(ollama --version 2>/dev/null | head -n1))"
+    ok "ollama $(ollama --version 2>/dev/null | head -n1 | awk '{print $NF}')"
     return 0
   fi
   if [ "$CHE_NO_DEPS" = "1" ]; then
@@ -332,7 +332,7 @@ ensure_ollama_binary() {
   esac
 
   if command -v ollama >/dev/null 2>&1; then
-    ok "ollama installed ($(ollama --version 2>/dev/null | head -n1))"
+    ok "ollama $(ollama --version 2>/dev/null | head -n1 | awk '{print $NF}')"
     return 0
   fi
   fail "ollama binary still not on PATH after install"
@@ -345,7 +345,7 @@ ollama_ping() {
 
 ollama_start_serve() {
   if ollama_ping; then
-    ok "ollama server already reachable at $CHE_OLLAMA_HOST"
+    ok "server@${CHE_OLLAMA_HOST#*://}"
     return 0
   fi
   info "starting 'ollama serve' in the background…"
@@ -357,7 +357,7 @@ ollama_start_serve() {
   for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 1
     if ollama_ping; then
-      ok "ollama server started at $CHE_OLLAMA_HOST"
+      ok "server@${CHE_OLLAMA_HOST#*://}"
       return 0
     fi
   done
@@ -372,7 +372,7 @@ ollama_pull_model() {
     return 0
   fi
   if ollama list 2>/dev/null | awk 'NR>1{print $1}' | grep -qx -- "$CHE_OLLAMA_MODEL\(:.*\)\{0,1\}"; then
-    ok "model already present: $CHE_OLLAMA_MODEL"
+    ok "model:$CHE_OLLAMA_MODEL"
     return 0
   fi
   if ! confirm "pull the default model '$CHE_OLLAMA_MODEL' (this can be a few GB)?"; then
@@ -380,7 +380,7 @@ ollama_pull_model() {
     return 0
   fi
   if ollama pull "$CHE_OLLAMA_MODEL"; then
-    ok "model pulled: $CHE_OLLAMA_MODEL"
+    ok "model:$CHE_OLLAMA_MODEL"
     return 0
   fi
   fail "ollama pull $CHE_OLLAMA_MODEL failed"
@@ -392,7 +392,7 @@ ensure_ollama() {
     info "skipping ollama setup (--no-ollama)"
     return 0
   fi
-  step "Ollama (default LLM provider for che commit / che ship)"
+  # Stays in the "runtime" category set by the caller.
   ensure_ollama_binary || return 1
   ollama_start_serve   || return 1
   ollama_pull_model    || return 1

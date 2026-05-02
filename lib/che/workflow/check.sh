@@ -43,12 +43,12 @@ workflow_check() {
   fi
 
   local pyver; pyver="$("$py" -c 'import sys;print(sys.version.split()[0])' 2>/dev/null)"
-  ok "$py ($pyver)"
+  ok "$py $pyver"
 
   if "$py" -c 'import yaml' 2>/dev/null; then
     local yamlver
     yamlver="$("$py" -c 'import yaml;print(yaml.__version__)' 2>/dev/null)"
-    ok "PyYAML ($yamlver)"
+    ok "PyYAML $yamlver"
   else
     fail "PyYAML not installed (required for che workflow / che run)"
     pyyaml_install_hint

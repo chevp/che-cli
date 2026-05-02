@@ -38,12 +38,11 @@ docker_check() {
     docker_install_hint
     return 1
   fi
-  ok "docker installed ($(docker_version))"
-
   if docker_running; then
-    ok "docker daemon is running"
+    ok "docker $(docker_version) (running)"
     return 0
   else
+    ok "docker $(docker_version)"
     fail "docker daemon not running"
     docker_start_hint
     return 1

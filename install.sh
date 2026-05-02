@@ -16,6 +16,7 @@
 # Env-var equivalents (so this can be driven from CI):
 #   CHE_ASSUME_YES=1, CHE_NO_DEPS=1, CHE_NO_OLLAMA=1, CHE_NO_MODEL=1,
 #   CHE_NO_PATH_EDIT=1, CHE_OLLAMA_MODEL=...
+#   CHE_VERBOSE=1   restore per-item ✓ output (default is compact)
 
 set -uo pipefail
 
@@ -48,20 +49,13 @@ else
   C_GREEN=""; C_CYAN=""; C_BOLD=""; C_DIM=""; C_RESET=""
 fi
 
-printf "${C_BOLD}che-cli install${C_RESET}  ${C_DIM}(prefix: %s)${C_RESET}\n" "$PREFIX"
-
 # ---------------------------------------------------------------------------
-# 1. Copy the dispatcher + lib tree into PREFIX.
+# 1. Copy the dispatcher + lib tree into PREFIX. (silent on success)
 # ---------------------------------------------------------------------------
-printf "\n${C_BOLD}${C_CYAN}==>${C_RESET} ${C_BOLD}Installing files${C_RESET}\n"
-
 mkdir -p "$PREFIX/bin" "$PREFIX/lib/che"
 install -m 0755 "$SRC/bin/che" "$PREFIX/bin/che"
 cp -R "$SRC/lib/che/." "$PREFIX/lib/che/"
 find "$PREFIX/lib/che" -name "*.sh" -exec chmod 0755 {} +
-
-printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$PREFIX/bin/che"
-printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$PREFIX/lib/che/  (full tree)"
 
 # Pin the install to the source repo's exact commit. `che ship` reads this
 # file to decide whether the running install is stale (see lib/che/self_update.sh).
@@ -78,8 +72,13 @@ fi
   printf 'installed_describe=%s\n' "$_installed_describe"
   printf 'installed_at=%s\n'       "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%s)"
 } > "$PREFIX/lib/che/.installed-version"
-unset _installed_sha _installed_describe
-printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s\n" "$PREFIX/lib/che/.installed-version"
+
+# Compact header: name + path + short SHA in one line.
+_short_sha="${_installed_sha:0:7}"
+[ -z "$_short_sha" ] && _short_sha="unknown"
+printf "${C_BOLD}che-cli installed${C_RESET} → %s  ${C_DIM}(%s)${C_RESET}\n" \
+  "$PREFIX/bin/che" "$_short_sha"
+unset _installed_sha _installed_describe _short_sha
 
 # ---------------------------------------------------------------------------
 # 2. Install runtime dependencies (git, python, ollama, etc.).
@@ -90,14 +89,12 @@ if [ -f "$DEPS_SCRIPT" ]; then
   export PATH="$PREFIX/bin:$PATH"
   bash "$DEPS_SCRIPT" || true
 else
-  printf "\n${C_DIM}(installer/lib/install-deps.sh not found — skipping dependency install)${C_RESET}\n"
+  printf "${C_DIM}(installer/lib/install-deps.sh not found — skipping dependency install)${C_RESET}\n"
 fi
 
 # ---------------------------------------------------------------------------
-# 3. PATH wiring.
+# 3. PATH wiring. Silent if already on PATH; otherwise prints the one action taken.
 # ---------------------------------------------------------------------------
-printf "\n${C_BOLD}${C_CYAN}==>${C_RESET} ${C_BOLD}PATH${C_RESET}\n"
-
 shell_rc=""
 case "$(basename "${SHELL:-}")" in
   zsh)  shell_rc="$HOME/.zshrc" ;;
@@ -116,9 +113,7 @@ export_line="export PATH=\"$PREFIX/bin:\$PATH\""
   && export_line="set -gx PATH $PREFIX/bin \$PATH"
 
 case ":$PATH:" in
-  *":$PREFIX/bin:"*)
-    printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} %s already on PATH\n" "$PREFIX/bin"
-    ;;
+  *":$PREFIX/bin:"*) : ;;  # already on PATH — no message
   *)
     if [ -n "$shell_rc" ] && [ "${CHE_NO_PATH_EDIT:-0}" != "1" ]; then
       mkdir -p "$(dirname "$shell_rc")"
@@ -129,23 +124,20 @@ case ":$PATH:" in
           echo "# added by che-cli install.sh"
           echo "$export_line"
         } >> "$shell_rc"
-        printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} added %s to PATH in %s\n" "$PREFIX/bin" "$shell_rc"
-      else
-        printf "  ${C_GREEN}\xe2\x9c\x93${C_RESET} PATH export already in %s\n" "$shell_rc"
+        printf "${C_DIM}path     ${C_RESET}+ %s in %s ${C_DIM}(open a new terminal)${C_RESET}\n" \
+          "$PREFIX/bin" "$shell_rc"
       fi
-      printf "  ${C_DIM}open a new terminal (or: source %s)${C_RESET}\n" "$shell_rc"
     else
-      printf "  add to your shell rc:\n    %s\n" "$export_line"
+      printf "${C_DIM}path     ${C_RESET}add to your shell rc:  %s\n" "$export_line"
     fi
     ;;
 esac
 
 # ---------------------------------------------------------------------------
-# 4. Final verification.
+# 4. Final verification (compact). doctor prints its own summary lines.
 # ---------------------------------------------------------------------------
-printf "\n${C_BOLD}${C_CYAN}==>${C_RESET} ${C_BOLD}Verification${C_RESET}\n"
 if [ -x "$PREFIX/bin/che" ]; then
   PATH="$PREFIX/bin:$PATH" "$PREFIX/bin/che" doctor || true
 fi
 
-printf "\n${C_BOLD}${C_GREEN}done.${C_RESET} try: ${C_BOLD}che commit${C_RESET}\n"
+printf "${C_GREEN}→ ready.${C_RESET}  next: ${C_BOLD}che commit${C_RESET}\n"
