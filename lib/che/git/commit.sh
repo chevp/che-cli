@@ -75,6 +75,44 @@ fi
 warnings_handle_interactive "$add_err_tmp" || cat "$add_err_tmp" >&2
 rm -f "$add_err_tmp"
 
+# Detect nested git repos staged as phantom gitlinks — 160000-mode entries
+# with no .gitmodules mapping. They happen when a sibling repo gets cloned
+# inside the working tree (e.g. user clones dify/ next to the project's own
+# files); `git add -A` records the HEAD sha as a subproject pointer, but
+# without a .gitmodules entry the result is unclonable downstream
+# (`fatal: no submodule mapping found in .gitmodules for path 'X'`).
+repo_top="$(git rev-parse --show-toplevel)"
+phantom_gitlinks=()
+while IFS= read -r raw_line; do
+  [ -z "$raw_line" ] && continue
+  # Format: ":<src_mode> <dst_mode> <src_sha> <dst_sha> <status>\t<path>"
+  dst_mode="$(printf '%s' "$raw_line" | awk '{print $2}')"
+  [ "$dst_mode" = "160000" ] || continue
+  path="$(printf '%s' "$raw_line" | cut -f2-)"
+  if [ ! -f "$repo_top/.gitmodules" ] \
+     || ! git config -f "$repo_top/.gitmodules" --get-regexp '^submodule\..*\.path$' 2>/dev/null \
+        | awk '{print $2}' | grep -Fxq -- "$path"; then
+    phantom_gitlinks+=("$path")
+  fi
+done < <(git diff --cached --raw)
+
+if [ "${#phantom_gitlinks[@]}" -gt 0 ]; then
+  {
+    echo "che commit: refusing to commit nested git repo(s) as phantom gitlink(s):"
+    for p in "${phantom_gitlinks[@]}"; do
+      echo "  - $p"
+    done
+    echo ""
+    echo "These paths contain a .git/ but have no entry in .gitmodules — committing"
+    echo "them creates a subproject pointer that nobody else can clone."
+    echo ""
+    echo "Fix one of:"
+    echo "  • register as a real submodule:  git submodule add <url> <path>"
+    echo "  • unstage and ignore:            git rm --cached <path> && echo <path> >> .gitignore"
+  } >&2
+  exit 1
+fi
+
 diff="$(git diff --cached --no-color)"
 if [ -z "$diff" ]; then
   echo "che commit: nothing staged, nothing to commit" >&2
