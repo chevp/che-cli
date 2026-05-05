@@ -107,7 +107,9 @@ for ((i = 0; i < steps_len; i++)); do
   printf '\n%s▶ [%d/%d] %s%s\n' \
     "$WF_C_BOLD" $((i + 1)) "$steps_len" "$sname" "$WF_C_RESET"
   printf '%s  %s' "$WF_C_DIM" "$script"
-  for a in "${args[@]}"; do printf ' %q' "$a"; done
+  # Empty-array expansion is unbound under `set -u` on bash 3.2 (macOS default),
+  # so guard each "${args[@]}" reference with the ${array[@]+...} idiom.
+  for a in ${args[@]+"${args[@]}"}; do printf ' %q' "$a"; done
   printf '%s\n' "$WF_C_RESET"
 
   if [ "$dry" = true ]; then continue; fi
@@ -117,7 +119,7 @@ for ((i = 0; i < steps_len; i++)); do
     exit 1
   fi
 
-  if bash "$script" "${args[@]}"; then
+  if bash "$script" ${args[@]+"${args[@]}"}; then
     printf '%s  ✓ %s%s\n' "$WF_C_GREEN" "$sname" "$WF_C_RESET"
   else
     rc=$?
