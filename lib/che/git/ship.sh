@@ -101,8 +101,6 @@ git_dir="$(git rev-parse --git-dir)"
 marker="$git_dir/che-flow"
 
 if [ -f "$repo_root/.gitmodules" ]; then
-  # Init each submodule individually so one failure doesn't abort the whole
-  # ship and skip the parent's commit/push.
   failed_submodules=()
 
   while read -r sm_path; do
@@ -111,24 +109,15 @@ if [ -f "$repo_root/.gitmodules" ]; then
     sm_err="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/che_sm_err.$$")"
     if ! git -C "$repo_root" submodule update --init -- "$sm_path" 2>"$sm_err"; then
       failed_submodules+=("$sm_path (init failed)")
-<<<<<<< Updated upstream
-      # Private repo / missing creds on this machine → quiet one-line skip,
-      # since the user can't fix it from here. Other failures get the full
-      # captured stderr so they remain debuggable.
       if grep -qE "Repository not found|Authentication failed|could not read Username|Permission denied|terminal prompts disabled" "$sm_err" 2>/dev/null; then
-        echo "che ship: $sm_path: no access to remote — skipping (continuing)" >&2
+        echo "che ship: $sm_path: no access to remote - skipping (continuing)" >&2
       else
         cat "$sm_err" >&2
-        echo "che ship: submodule update failed for '$sm_path' — skipping (continuing)" >&2
+        echo "che ship: submodule update failed for '$sm_path' - skipping (continuing)" >&2
       fi
       rm -f "$sm_err"
-=======
-      echo "che ship: submodule update failed for '$sm_path' - skipping (continuing)" >&2
->>>>>>> Stashed changes
       continue
     fi
-    # Success: forward any informational stderr (e.g. "Submodule path ...
-    # checked out") so the caller still sees normal progress.
     [ -s "$sm_err" ] && cat "$sm_err" >&2
     rm -f "$sm_err"
 
@@ -136,8 +125,13 @@ if [ -f "$repo_root/.gitmodules" ]; then
     [ -e "$sm_abs/.git" ] || continue
 
     if git -C "$sm_abs" symbolic-ref -q HEAD >/dev/null; then
-      _ship_pull_with_recovery "$sm_abs" "$sm_path" \
-        || echo "che ship: pull failed in $sm_path (continuing)"
+      set +e
+      _ship_pull_with_recovery "$sm_abs" "$sm_path"
+      pull_rc=$?
+      set -e
+      if [ "$pull_rc" -ne 0 ]; then
+        echo "che ship: pull failed in $sm_path (continuing)"
+      fi
     else
       echo "che ship: $sm_path is in detached HEAD, skipping pull"
     fi
@@ -159,8 +153,12 @@ fi
 # --- pull main repo before commit/push: ff-only first, fall back to rebase ---
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
    && git -C "$repo_root" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-  if ! _ship_pull_with_recovery "$repo_root" "$(basename "$repo_root")"; then
-    pull_rc=$?
+  set +e
+  _ship_pull_with_recovery "$repo_root" "$(basename "$repo_root")"
+  pull_rc=$?
+  set -e
+
+  if [ "$pull_rc" -ne 0 ]; then
     if [ "$pull_rc" -eq 2 ]; then
       exit 1
     fi
@@ -170,8 +168,6 @@ if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
       echo "che ship: rebase produced conflicts in $(basename "$repo_root") - invoking claude code" >&2
       # shellcheck source=conflicts.sh
       . "$LIB_DIR/git/conflicts.sh"
-      # Loop because `rebase --continue` can surface a fresh batch of
-      # conflicts on the next replayed commit.
       rebase_done=false
       while true; do
         set +e
@@ -183,12 +179,10 @@ if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
           echo "che ship: conflicts unresolved - rebase aborted" >&2
           exit 1
         fi
-        # Skip the commit message editor that `rebase --continue` would open.
         if GIT_EDITOR=true git -C "$repo_root" rebase --continue; then
           rebase_done=true
           break
         fi
-        # `rebase --continue` failed - only loop if it's because of more conflicts.
         if [ -z "$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null)" ]; then
           echo "che ship: rebase --continue failed unexpectedly - aborting" >&2
           git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
@@ -227,13 +221,9 @@ if [ -f "$marker" ]; then
   fi
   printf '\n-- repo: %s (%s) --\n' "$(basename "$repo_root")" "$flow_label"
 
-  # Stage + AI commit (no --push: we need -u origin on first push).
   bash "$LIB_DIR/git/commit.sh" --yes
-
-  # Push (sets upstream on first call; cheap to repeat).
   git_push_with_recovery -u origin "$branch"
 
-  # Open draft PR on first call.
   if [ -z "$pr" ]; then
     if [ -z "$(git log "origin/$base..$branch" --oneline 2>/dev/null)" ]; then
       echo "che ship: no commits on '$branch' beyond '$base' yet - skipping PR creation" >&2
@@ -255,13 +245,9 @@ if [ -f "$marker" ]; then
 fi
 
 # --- default: existing behavior ---
-
-# Recover from detached HEAD before deciding whether the tree is "clean", so
-# detached-HEAD recovery still runs even on a no-op ship.
 if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   detached_commit="$(git -C "$repo_root" rev-parse HEAD)"
 
-  # Prefer the active che-flow branch if a marker exists.
   if [ -f "$marker" ]; then
     flow_branch="$(awk -F= '$1=="branch"{print $2}' "$marker")"
   else
