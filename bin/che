@@ -16,6 +16,7 @@ che — collection of small CLI utilities
 Usage: che <command> [args]
 
 Commands:
+  version             print installed che-cli version/build metadata
   commit              stage all + AI-generated commit message (+ optional push)
   ship                add + commit + push, recursively into submodules
                       (init missing submodules, ff-pull on a branch);
@@ -71,6 +72,7 @@ case "$cmd" in
 esac
 
 case "$cmd" in
+  version)        exec bash "$CHE_LIB_DIR/version.sh"     "$@" ;;
   commit)         exec bash "$CHE_LIB_DIR/git/commit.sh"  "$@" ;;
   ship)           exec bash "$CHE_LIB_DIR/git/ship.sh"    "$@" ;;
   flow)           exec bash "$CHE_LIB_DIR/git/flow.sh"    "$@" ;;

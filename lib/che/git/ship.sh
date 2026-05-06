@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# che ship — for this repo and every submodule (recursively):
+# che ship - for this repo and every submodule (recursively):
 #   init if missing, fast-forward pull if on a branch, then add + commit + push.
 #
 # When this repo has an active che-flow marker (.git/che-flow), ship instead:
@@ -9,6 +9,61 @@ set -euo pipefail
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CHE_BIN="${CHE_BIN:-$LIB_DIR/../../bin/che}"
 . "$LIB_DIR/git/push.sh"
+
+_ship_pull_network_error() {
+  local err_file="$1"
+  grep -Eiq "Could not resolve host:|Temporary failure in name resolution|Couldn't resolve host|Name or service not known" "$err_file"
+}
+
+_ship_pull_with_recovery() {
+  local repo_root="$1"
+  local repo_label="$2"
+  local err_file pull_rc
+  err_file="$(mktemp 2>/dev/null || printf '%s/.che-ship-pull.err' "$repo_root")"
+  : > "$err_file"
+
+  if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
+    rm -f "$err_file" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if ! git -C "$repo_root" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    rm -f "$err_file" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if git -C "$repo_root" pull --ff-only --autostash >/dev/null 2>"$err_file"; then
+    rm -f "$err_file" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  if _ship_pull_network_error "$err_file"; then
+    printf 'che ship: network/DNS error while pulling %s - Git host could not be resolved\n' "$repo_label" >&2
+    sed -n '1,3p' "$err_file" >&2
+    printf 'che ship: check internet/VPN/proxy/DNS, then retry\n' >&2
+    rm -f "$err_file" >/dev/null 2>&1 || true
+    return 2
+  fi
+
+  echo "che ship: ff-only pull failed in $repo_label - trying pull --rebase --autostash" >&2
+  : > "$err_file"
+  if git -C "$repo_root" pull --rebase --autostash 2>"$err_file"; then
+    rm -f "$err_file" >/dev/null 2>&1 || true
+    return 0
+  fi
+  pull_rc=$?
+
+  if _ship_pull_network_error "$err_file"; then
+    printf 'che ship: network/DNS error while pulling %s - Git host could not be resolved\n' "$repo_label" >&2
+    sed -n '1,3p' "$err_file" >&2
+    printf 'che ship: check internet/VPN/proxy/DNS, then retry\n' >&2
+    rm -f "$err_file" >/dev/null 2>&1 || true
+    return 2
+  fi
+
+  rm -f "$err_file" >/dev/null 2>&1 || true
+  return "${pull_rc:-1}"
+}
 
 # Self-update is only checked at the top-level ship invocation. Recursive
 # submodule ships set CHE_SHIP_DEPTH for their children so the prompt fires
@@ -21,7 +76,7 @@ fi
 export CHE_SHIP_DEPTH=$((${CHE_SHIP_DEPTH:-0} + 1))
 
 # _ship_finish <exit_code>
-# Single exit point — runs the hash-based self-update check on a successful
+# Single exit point - runs the hash-based self-update check on a successful
 # top-level ship, then exits with the original code. Failed ships skip the
 # check (don't pile updates on top of an existing problem).
 _ship_finish() {
@@ -46,9 +101,8 @@ git_dir="$(git rev-parse --git-dir)"
 marker="$git_dir/che-flow"
 
 if [ -f "$repo_root/.gitmodules" ]; then
-  # Init each submodule individually so one failure (e.g. a sibling repo
-  # checked into a path Windows can't represent like 'foo:/bar.json') doesn't
-  # abort the whole ship and skip the parent's commit/push.
+  # Init each submodule individually so one failure doesn't abort the whole
+  # ship and skip the parent's commit/push.
   failed_submodules=()
 
   while read -r sm_path; do
@@ -57,6 +111,7 @@ if [ -f "$repo_root/.gitmodules" ]; then
     sm_err="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/che_sm_err.$$")"
     if ! git -C "$repo_root" submodule update --init -- "$sm_path" 2>"$sm_err"; then
       failed_submodules+=("$sm_path (init failed)")
+<<<<<<< Updated upstream
       # Private repo / missing creds on this machine → quiet one-line skip,
       # since the user can't fix it from here. Other failures get the full
       # captured stderr so they remain debuggable.
@@ -67,6 +122,9 @@ if [ -f "$repo_root/.gitmodules" ]; then
         echo "che ship: submodule update failed for '$sm_path' — skipping (continuing)" >&2
       fi
       rm -f "$sm_err"
+=======
+      echo "che ship: submodule update failed for '$sm_path' - skipping (continuing)" >&2
+>>>>>>> Stashed changes
       continue
     fi
     # Success: forward any informational stderr (e.g. "Submodule path ...
@@ -77,12 +135,8 @@ if [ -f "$repo_root/.gitmodules" ]; then
     sm_abs="$repo_root/$sm_path"
     [ -e "$sm_abs/.git" ] || continue
 
-    # The recursive `che ship` below prints its own per-repo header (or compact
-    # clean line), so we skip a parent-side "── submodule: X ──" header here to
-    # avoid duplicate context. --quiet suppresses "Already up to date." noise;
-    # errors still surface.
     if git -C "$sm_abs" symbolic-ref -q HEAD >/dev/null; then
-      git -C "$sm_abs" pull --ff-only --quiet \
+      _ship_pull_with_recovery "$sm_abs" "$sm_path" \
         || echo "che ship: pull failed in $sm_path (continuing)"
     else
       echo "che ship: $sm_path is in detached HEAD, skipping pull"
@@ -105,45 +159,47 @@ fi
 # --- pull main repo before commit/push: ff-only first, fall back to rebase ---
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null \
    && git -C "$repo_root" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-  if ! git -C "$repo_root" pull --ff-only --autostash >/dev/null 2>&1; then
-    echo "che ship: ff-only pull failed in $(basename "$repo_root") — trying pull --rebase --autostash" >&2
-    if ! git -C "$repo_root" pull --rebase --autostash; then
-      git_dir_pull="$(git -C "$repo_root" rev-parse --git-dir)"
-      if [ -d "$git_dir_pull/rebase-merge" ] || [ -d "$git_dir_pull/rebase-apply" ]; then
-        echo "che ship: rebase produced conflicts in $(basename "$repo_root") — invoking claude code" >&2
-        # shellcheck source=conflicts.sh
-        . "$LIB_DIR/git/conflicts.sh"
-        # Loop because `rebase --continue` can surface a fresh batch of
-        # conflicts on the next replayed commit.
-        rebase_done=false
-        while true; do
-          set +e
-          ( cd "$repo_root" && conflicts_resolve_interactive )
-          resolve_rc=$?
-          set -e
-          if [ "$resolve_rc" -ne 0 ]; then
-            git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
-            echo "che ship: conflicts unresolved — rebase aborted" >&2
-            exit 1
-          fi
-          # Skip the commit message editor that `rebase --continue` would open.
-          if GIT_EDITOR=true git -C "$repo_root" rebase --continue; then
-            rebase_done=true
-            break
-          fi
-          # `rebase --continue` failed — only loop if it's because of more conflicts.
-          if [ -z "$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null)" ]; then
-            echo "che ship: rebase --continue failed unexpectedly — aborting" >&2
-            git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
-            exit 1
-          fi
-          echo "che ship: more conflicts on next commit — re-invoking claude code" >&2
-        done
-        $rebase_done && echo "che ship: ✓ rebase completed with claude assistance"
-      else
-        echo "che ship: pull failed in $(basename "$repo_root") — resolve manually and retry" >&2
-        exit 1
-      fi
+  if ! _ship_pull_with_recovery "$repo_root" "$(basename "$repo_root")"; then
+    pull_rc=$?
+    if [ "$pull_rc" -eq 2 ]; then
+      exit 1
+    fi
+
+    git_dir_pull="$(git -C "$repo_root" rev-parse --git-dir)"
+    if [ -d "$git_dir_pull/rebase-merge" ] || [ -d "$git_dir_pull/rebase-apply" ]; then
+      echo "che ship: rebase produced conflicts in $(basename "$repo_root") - invoking claude code" >&2
+      # shellcheck source=conflicts.sh
+      . "$LIB_DIR/git/conflicts.sh"
+      # Loop because `rebase --continue` can surface a fresh batch of
+      # conflicts on the next replayed commit.
+      rebase_done=false
+      while true; do
+        set +e
+        ( cd "$repo_root" && conflicts_resolve_interactive )
+        resolve_rc=$?
+        set -e
+        if [ "$resolve_rc" -ne 0 ]; then
+          git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
+          echo "che ship: conflicts unresolved - rebase aborted" >&2
+          exit 1
+        fi
+        # Skip the commit message editor that `rebase --continue` would open.
+        if GIT_EDITOR=true git -C "$repo_root" rebase --continue; then
+          rebase_done=true
+          break
+        fi
+        # `rebase --continue` failed - only loop if it's because of more conflicts.
+        if [ -z "$(git -C "$repo_root" diff --name-only --diff-filter=U 2>/dev/null)" ]; then
+          echo "che ship: rebase --continue failed unexpectedly - aborting" >&2
+          git -C "$repo_root" rebase --abort >/dev/null 2>&1 || true
+          exit 1
+        fi
+        echo "che ship: more conflicts on next commit - re-invoking claude code" >&2
+      done
+      $rebase_done && echo "che ship: rebase completed with claude assistance"
+    else
+      echo "che ship: pull failed in $(basename "$repo_root") - resolve manually and retry" >&2
+      exit 1
     fi
   fi
 fi
@@ -151,8 +207,8 @@ fi
 # --- flow mode: commit, push -u, open/update draft PR ---
 if [ -f "$marker" ]; then
   branch="$(awk -F= '$1=="branch"{print $2}' "$marker")"
-  base="$(awk -F=   '$1=="base"{print $2}'   "$marker")"
-  pr="$(awk -F=     '$1=="pr"{print $2}'     "$marker")"
+  base="$(awk -F= '$1=="base"{print $2}' "$marker")"
+  pr="$(awk -F= '$1=="pr"{print $2}' "$marker")"
   [ -z "$base" ] && base="main"
 
   cur="$(git rev-parse --abbrev-ref HEAD)"
@@ -165,11 +221,11 @@ if [ -f "$marker" ]; then
     || { echo "che ship: missing dependency: gh (required in flow mode)" >&2; exit 1; }
 
   if [ -n "$pr" ]; then
-    flow_label="flow: $branch → $base, PR #$pr"
+    flow_label="flow: $branch -> $base, PR #$pr"
   else
-    flow_label="flow: $branch → $base"
+    flow_label="flow: $branch -> $base"
   fi
-  printf '\n── repo: %s (%s) ──\n' "$(basename "$repo_root")" "$flow_label"
+  printf '\n-- repo: %s (%s) --\n' "$(basename "$repo_root")" "$flow_label"
 
   # Stage + AI commit (no --push: we need -u origin on first push).
   bash "$LIB_DIR/git/commit.sh" --yes
@@ -180,20 +236,20 @@ if [ -f "$marker" ]; then
   # Open draft PR on first call.
   if [ -z "$pr" ]; then
     if [ -z "$(git log "origin/$base..$branch" --oneline 2>/dev/null)" ]; then
-      echo "che ship: no commits on '$branch' beyond '$base' yet — skipping PR creation" >&2
+      echo "che ship: no commits on '$branch' beyond '$base' yet - skipping PR creation" >&2
       _ship_finish 0
     fi
     new_pr_url="$(gh pr create --draft --fill --base "$base" --head "$branch")"
     new_pr="$(printf '%s\n' "$new_pr_url" | awk -F/ '/\/pull\//{print $NF}' | tr -d '\r\n')"
     if [ -n "$new_pr" ]; then
       printf 'pr=%s\n' "$new_pr" >> "$marker"
-      printf '\n→ draft PR: %s\n' "$new_pr_url"
+      printf '\n-> draft PR: %s\n' "$new_pr_url"
     else
       echo "che ship: failed to parse PR number from gh output: $new_pr_url" >&2
       _ship_finish 1
     fi
   else
-    printf '\n→ updated PR #%s\n' "$pr"
+    printf '\n-> updated PR #%s\n' "$pr"
   fi
   _ship_finish 0
 fi
@@ -216,9 +272,6 @@ if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   if [ -n "$flow_branch" ] && git -C "$repo_root" show-ref --verify --quiet "refs/heads/$flow_branch"; then
     recover_branch="$flow_branch"
   else
-    # for-each-ref refs/heads/ only returns real local branches — unlike
-    # `git branch --contains`, which prepends "(HEAD detached at <sha>)" and
-    # would otherwise trip up `head -n 1`.
     recover_branch="$(git -C "$repo_root" for-each-ref --format='%(refname:short)' --contains "$detached_commit" refs/heads/ 2>/dev/null | head -n 1 | tr -d '\r')"
   fi
 
@@ -231,14 +284,12 @@ if ! git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   fi
 fi
 
-# Compact path: nothing in the working tree → one-line status, skip commit.sh.
-# Verbose "── repo: X ──" header is reserved for repos that actually do work.
 if [ -z "$(git -C "$repo_root" status --porcelain 2>/dev/null)" ]; then
   printf '%s: clean\n' "$(basename "$repo_root")"
   _ship_finish 0
 fi
 
-printf '\n── repo: %s ──\n' "$(basename "$repo_root")"
+printf '\n-- repo: %s --\n' "$(basename "$repo_root")"
 
 if git -C "$repo_root" symbolic-ref -q HEAD >/dev/null; then
   bash "$LIB_DIR/git/commit.sh" --push --yes
