@@ -54,11 +54,25 @@ if [ -f "$repo_root/.gitmodules" ]; then
   while read -r sm_path; do
     [ -z "$sm_path" ] && continue
 
-    if ! git -C "$repo_root" submodule update --init -- "$sm_path"; then
+    sm_err="$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/che_sm_err.$$")"
+    if ! git -C "$repo_root" submodule update --init -- "$sm_path" 2>"$sm_err"; then
       failed_submodules+=("$sm_path (init failed)")
-      echo "che ship: submodule update failed for '$sm_path' — skipping (continuing)" >&2
+      # Private repo / missing creds on this machine → quiet one-line skip,
+      # since the user can't fix it from here. Other failures get the full
+      # captured stderr so they remain debuggable.
+      if grep -qE "Repository not found|Authentication failed|could not read Username|Permission denied|terminal prompts disabled" "$sm_err" 2>/dev/null; then
+        echo "che ship: $sm_path: no access to remote — skipping (continuing)" >&2
+      else
+        cat "$sm_err" >&2
+        echo "che ship: submodule update failed for '$sm_path' — skipping (continuing)" >&2
+      fi
+      rm -f "$sm_err"
       continue
     fi
+    # Success: forward any informational stderr (e.g. "Submodule path ...
+    # checked out") so the caller still sees normal progress.
+    [ -s "$sm_err" ] && cat "$sm_err" >&2
+    rm -f "$sm_err"
 
     sm_abs="$repo_root/$sm_path"
     [ -e "$sm_abs/.git" ] || continue
