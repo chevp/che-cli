@@ -1,35 +1,11 @@
 #!/usr/bin/env bash
-# che self-update — hash-based staleness detection for the running che-cli
-# install. Compares three SHAs:
-#
-#   installed_sha   — recorded by install.sh / install.ps1 in
-#                     <prefix>/lib/che/.installed-version at install time
-#   source_sha      — current HEAD of the source clone (recorded source_repo)
-#   upstream_sha    — current HEAD of @{u} after `git fetch`
-#
-# States:
-#   all equal               → up-to-date, silent
-#   installed != source     → install stale (someone pulled but didn't reinstall)
-#   source    != upstream   → source stale (need to pull from origin)
-#   both                    → pull + reinstall
-#
-# Skip conditions:
-#   CHE_NO_SELF_UPDATE=1
-#   .installed-version missing (running from clone or pre-versioning install)
-#   source repo missing or not a git repo
-#   source repo dirty (uncommitted changes — would conflict with pull)
-#   source repo on detached HEAD
-#
-# All output goes to stderr so callers can wrap this without contaminating stdout.
+# che self-update - hash-based staleness detection for the running che-cli install.
 
 _self_update_lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 _self_update_log() { printf 'che self-update: %s\n' "$*" >&2; }
 
 _self_update_read_kv() {
-  # Reads `key=value` lines from a file into shell-locals — POSIX-safe (no
-  # eval, no leading-whitespace assumptions). Strips trailing CR for files
-  # written with Windows line endings.
   local file="$1" key="$2" line
   [ -f "$file" ] || return 1
   while IFS= read -r line || [ -n "$line" ]; do
@@ -42,14 +18,11 @@ _self_update_read_kv() {
 }
 
 _self_update_short() {
-  # Trim a SHA to 7 chars; pass-through if it's already short or non-SHA.
   local s="$1"
   if [ "${#s}" -ge 7 ]; then printf '%s' "${s:0:7}"; else printf '%s' "$s"; fi
 }
 
 _self_update_run_installer() {
-  # Runs the source repo's installer with --no-deps --yes (lightweight).
-  # On Windows, prefers PowerShell so winget/Copy-Item paths stay native.
   local repo="$1"
   local sh_path="$repo/install.sh"
   local ps_path="$repo/install.ps1"
@@ -73,9 +46,6 @@ _self_update_run_installer() {
   return 1
 }
 
-# che_self_update_check
-# Returns 0 always (best-effort — never fails the calling command).
-# The user can disable entirely with CHE_NO_SELF_UPDATE=1.
 che_self_update_check() {
   if [ "${CHE_NO_SELF_UPDATE:-0}" = "1" ]; then
     return 0
@@ -83,8 +53,6 @@ che_self_update_check() {
 
   local version_file="$_self_update_lib_dir/.installed-version"
   if [ ! -f "$version_file" ]; then
-    # Either running from clone (development) or installed before we started
-    # writing this file. Nothing to compare against — skip silently.
     return 0
   fi
 
@@ -92,30 +60,29 @@ che_self_update_check() {
   source_repo="$(_self_update_read_kv "$version_file" source_repo)" || return 0
   installed_sha="$(_self_update_read_kv "$version_file" installed_sha)" || return 0
 
-  if [ -z "$source_repo" ] || [ ! -d "$source_repo/.git" ]; then
-    _self_update_log "recorded source_repo '$source_repo' is not a git repo — skipping"
+  if [ -z "$source_repo" ] || ! git -C "$source_repo" rev-parse --git-dir >/dev/null 2>&1; then
+    _self_update_log "recorded source_repo '$source_repo' is not a git repo - skipping"
     return 0
   fi
 
   if ! git -C "$source_repo" symbolic-ref -q HEAD >/dev/null; then
-    _self_update_log "source repo on detached HEAD — skipping"
+    _self_update_log "source repo on detached HEAD - skipping"
     return 0
   fi
 
   if [ -n "$(git -C "$source_repo" status --porcelain 2>/dev/null)" ]; then
-    _self_update_log "source repo has uncommitted changes — skipping (resolve manually)"
+    _self_update_log "source repo has uncommitted changes - skipping (resolve manually)"
     return 0
   fi
 
-  # Best-effort fetch with a hard timeout so a flaky network can't stall ship.
   if command -v timeout >/dev/null 2>&1; then
     timeout 10 git -C "$source_repo" fetch --quiet 2>/dev/null || {
-      _self_update_log "fetch failed or timed out — skipping"
+      _self_update_log "fetch failed or timed out - skipping"
       return 0
     }
   else
     git -C "$source_repo" fetch --quiet 2>/dev/null || {
-      _self_update_log "fetch failed — skipping"
+      _self_update_log "fetch failed - skipping"
       return 0
     }
   fi
@@ -123,38 +90,35 @@ che_self_update_check() {
   local source_sha upstream_sha
   source_sha="$(git -C "$source_repo" rev-parse HEAD 2>/dev/null)" || return 0
   upstream_sha="$(git -C "$source_repo" rev-parse '@{u}' 2>/dev/null)" || {
-    _self_update_log "no upstream tracking branch — skipping"
+    _self_update_log "no upstream tracking branch - skipping"
     return 0
   }
 
   local source_stale=false install_stale=false
-  [ "$source_sha"   != "$upstream_sha"  ] && source_stale=true
-  [ "$installed_sha" != "$source_sha"   ] && install_stale=true
+  [ "$source_sha" != "$upstream_sha" ] && source_stale=true
+  [ "$installed_sha" != "$source_sha" ] && install_stale=true
 
   if ! $source_stale && ! $install_stale; then
     return 0
   fi
 
-  # ---- there's something to update — show diagnostic + prompt ----
   local installed_short source_short upstream_short
   installed_short="$(_self_update_short "$installed_sha")"
   source_short="$(_self_update_short "$source_sha")"
   upstream_short="$(_self_update_short "$upstream_sha")"
   if $source_stale; then
-    _self_update_log "out of date  ${installed_short} → ${upstream_short}  (pull + reinstall)"
+    _self_update_log "out of date  ${installed_short} -> ${upstream_short}  (pull + reinstall)"
   else
-    _self_update_log "out of date  ${installed_short} → ${source_short}  (reinstall)"
+    _self_update_log "out of date  ${installed_short} -> ${source_short}  (reinstall)"
   fi
 
-  # CHE_AUTO_SELF_UPDATE=1 skips the prompt (for non-interactive use).
   local answer
   if [ "${CHE_AUTO_SELF_UPDATE:-0}" = "1" ]; then
     answer=y
   else
     printf 'apply update now? [Y/n] ' >&2
     if ! IFS= read -r answer </dev/tty 2>/dev/null; then
-      # No tty (e.g. piped invocation) — default to skip rather than block.
-      _self_update_log "no tty for prompt — skipping (set CHE_AUTO_SELF_UPDATE=1 to auto-apply)"
+      _self_update_log "no tty for prompt - skipping (set CHE_AUTO_SELF_UPDATE=1 to auto-apply)"
       return 0
     fi
   fi
@@ -164,15 +128,13 @@ che_self_update_check() {
 
   if $source_stale; then
     if ! git -C "$source_repo" pull --ff-only --quiet; then
-      _self_update_log "ff-only pull failed — resolve manually in $source_repo and rerun"
+      _self_update_log "ff-only pull failed - resolve manually in $source_repo and rerun"
       return 0
     fi
   fi
 
-  # The installer prints its own compact "che-cli installed → … (sha)" line —
-  # no separate "running" / "✓ updated" log lines needed.
   if ! _self_update_run_installer "$source_repo"; then
-    _self_update_log "installer reported errors — see output above"
+    _self_update_log "installer reported errors - see output above"
   fi
   return 0
 }

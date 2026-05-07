@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# che commit — stage all changes, generate a commit message via local LLM, commit.
+# che commit - stage all changes, generate a commit message via local LLM, commit.
 set -euo pipefail
 
 LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$LIB_DIR/provider.sh"
+. "$LIB_DIR/python.sh"
 . "$LIB_DIR/ui.sh"
 . "$LIB_DIR/git/push.sh"
 . "$LIB_DIR/git/warnings.sh"
@@ -24,7 +25,7 @@ while [ "$#" -gt 0 ]; do
     -e|--edit)    edit=true ;;
     -h|--help)
       cat <<EOF
-che commit — stage all changes, generate a commit message via local LLM, commit.
+che commit - stage all changes, generate a commit message via local LLM, commit.
 
 Usage: che commit [options]
 
@@ -55,8 +56,8 @@ done
 for bin in git curl; do
   command -v "$bin" >/dev/null 2>&1 || { echo "missing dependency: $bin" >&2; exit 1; }
 done
-if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
-  echo "missing dependency: python3 (or python) — install via brew/apt/winget" >&2
+if ! che_python_resolve >/dev/null 2>&1; then
+  echo "missing dependency: python3 (or python) - install via brew/apt/winget" >&2
   exit 1
 fi
 
@@ -75,17 +76,10 @@ fi
 warnings_handle_interactive "$add_err_tmp" || cat "$add_err_tmp" >&2
 rm -f "$add_err_tmp"
 
-# Detect nested git repos staged as phantom gitlinks — 160000-mode entries
-# with no .gitmodules mapping. They happen when a sibling repo gets cloned
-# inside the working tree (e.g. user clones dify/ next to the project's own
-# files); `git add -A` records the HEAD sha as a subproject pointer, but
-# without a .gitmodules entry the result is unclonable downstream
-# (`fatal: no submodule mapping found in .gitmodules for path 'X'`).
 repo_top="$(git rev-parse --show-toplevel)"
 phantom_gitlinks=()
 while IFS= read -r raw_line; do
   [ -z "$raw_line" ] && continue
-  # Format: ":<src_mode> <dst_mode> <src_sha> <dst_sha> <status>\t<path>"
   dst_mode="$(printf '%s' "$raw_line" | awk '{print $2}')"
   [ "$dst_mode" = "160000" ] || continue
   path="$(printf '%s' "$raw_line" | cut -f2-)"
@@ -103,12 +97,12 @@ if [ "${#phantom_gitlinks[@]}" -gt 0 ]; then
       echo "  - $p"
     done
     echo ""
-    echo "These paths contain a .git/ but have no entry in .gitmodules — committing"
+    echo "These paths contain a .git/ but have no entry in .gitmodules - committing"
     echo "them creates a subproject pointer that nobody else can clone."
     echo ""
     echo "Fix one of:"
-    echo "  • register as a real submodule:  git submodule add <url> <path>"
-    echo "  • unstage and ignore:            git rm --cached <path> && echo <path> >> .gitignore"
+    echo "  - register as a real submodule:  git submodule add <url> <path>"
+    echo "  - unstage and ignore:            git rm --cached <path> && echo <path> >> .gitignore"
   } >&2
   exit 1
 fi
@@ -174,10 +168,6 @@ if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model)
   [ -s "$err_tmp" ] && cat "$err_tmp" >&2
   raw="$(cat "$out_tmp")"
   msg="$(printf '%s\n' "$raw" | awk '
-    # Strip markdown formatting that small models emit despite being told not
-    # to: fence lines, ATX headers (#), bold markers (**), and "* " bullets
-    # (normalized to "- "). Underscores are left alone since they commonly
-    # appear in identifiers a commit message might reference (e.g. __init__).
     /^[[:space:]]*```/ { next }
     {
       sub(/^[[:space:]]*#+[[:space:]]+/, "")
@@ -196,20 +186,17 @@ if ui_spin "$gen_pid" "thinking via $(provider_active) ($(provider_active_model)
     sub(/^[[:space:]]+/, "")
     sub(/^["'"'"']/, ""); sub(/["'"'"']$/, "")
   } { print }' | awk '
-    # Enforce git-commit convention: blank line between subject and body.
-    # Without it, git treats the whole run-on block as one giant subject and
-    # `git log %s` will smash it into one line (downstream: che status).
     NR==1 { print; need_blank=1; next }
     need_blank { if (NF) print ""; need_blank=0 }
     { print }
   ')"
   if [ -z "$(printf '%s\n' "$msg" | head -n 1)" ]; then
-    echo "che commit: LLM returned empty message — using default message" >&2
+    echo "che commit: LLM returned empty message - using default message" >&2
     msg=""
   fi
 else
   [ -s "$err_tmp" ] && cat "$err_tmp" >&2
-  echo "che commit: message generation failed — using default message" >&2
+  echo "che commit: message generation failed - using default message" >&2
   echo "             run 'che doctor provider' for diagnostics" >&2
 fi
 
@@ -219,7 +206,7 @@ fi
 
 title="$(printf '%s\n' "$msg" | head -n 1)"
 
-printf '\n→ %s\n' "$title"
+printf '\n-> %s\n' "$title"
 body="$(printf '%s\n' "$msg" | awk 'NR>1 && (NF || printed) { printed=1; print }')"
 if [ -n "$body" ]; then
   printf '%s\n' "$body" | awk '{ print "  " $0 }'

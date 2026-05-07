@@ -3,6 +3,7 @@
 
 CHECK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 . "$CHECK_DIR/platform.sh"
+. "$CHECK_DIR/python.sh"
 
 type ok   >/dev/null 2>&1 || ok()   { printf "  %s\n" "$1"; }
 type fail >/dev/null 2>&1 || fail() { printf "  error: %s\n" "$1"; }
@@ -27,14 +28,8 @@ python_install_hint() {
 }
 
 workflow_check() {
-  local rc=0 py="" cand
-  # Probe by actually running each candidate — on Windows, `python3` is often
-  # a Store App Execution Alias that's on PATH but doesn't execute.
-  for cand in python3 python; do
-    if command -v "$cand" >/dev/null 2>&1 && "$cand" -c '' >/dev/null 2>&1; then
-      py="$cand"; break
-    fi
-  done
+  local rc=0 py=""
+  py="$(che_python_resolve 2>/dev/null || true)"
 
   if [ -z "$py" ]; then
     fail "python3 not installed (required for che workflow / che run)"
@@ -42,12 +37,13 @@ workflow_check() {
     return 1
   fi
 
-  local pyver; pyver="$("$py" -c 'import sys;print(sys.version.split()[0])' 2>/dev/null)"
+  local pyver
+  pyver="$(che_python_run -c 'import sys;print(sys.version.split()[0])' 2>/dev/null)"
   ok "$py $pyver"
 
-  if "$py" -c 'import yaml' 2>/dev/null; then
+  if che_python_run -c 'import yaml' 2>/dev/null; then
     local yamlver
-    yamlver="$("$py" -c 'import yaml;print(yaml.__version__)' 2>/dev/null)"
+    yamlver="$(che_python_run -c 'import yaml;print(yaml.__version__)' 2>/dev/null)"
     ok "PyYAML $yamlver"
   else
     fail "PyYAML not installed (required for che workflow / che run)"

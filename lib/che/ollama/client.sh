@@ -12,6 +12,20 @@ ollama_ping() {
   curl -sS --fail --connect-timeout 2 "$CHE_OLLAMA_HOST/api/tags" >/dev/null 2>&1
 }
 
+_ollama_has_model_via_cli() {
+  local model="${1:-$CHE_OLLAMA_MODEL}"
+  command -v ollama >/dev/null 2>&1 || return 1
+  ollama list 2>/dev/null \
+    | awk -v model="$model" 'NR>1 { name=$1; if (index(name, model) == 1 && (length(name) == length(model) || substr(name, length(model) + 1, 1) == ":")) found=1 } END { exit(found ? 0 : 1) }'
+}
+
+_ollama_generate_via_cli() {
+  local prompt="$1"
+  local model="${2:-$CHE_OLLAMA_MODEL}"
+  command -v ollama >/dev/null 2>&1 || return 1
+  ollama run "$model" "$prompt"
+}
+
 # ollama_serve_start [timeout_seconds]
 # If the server is already responding, returns 0 immediately.
 # Otherwise spawns `ollama serve` in the background and waits up to
@@ -41,7 +55,8 @@ if not raw.strip(): sys.exit(1)
 try: data=json.loads(raw)
 except (json.JSONDecodeError, ValueError): sys.exit(1)
 prefix=os.environ["CHE_JSON_PREFIX"]
-sys.exit(0 if any((m.get("name") or "").startswith(prefix) for m in data.get("models") or []) else 1)'
+sys.exit(0 if any((m.get("name") or "").startswith(prefix) for m in data.get("models") or []) else 1)' \
+    || _ollama_has_model_via_cli "$model"
 }
 
 # ollama_generate <prompt> [model]
@@ -54,5 +69,6 @@ ollama_generate() {
   curl -sS --fail -X POST "$CHE_OLLAMA_HOST/api/generate" \
     -H 'Content-Type: application/json' \
     -d "$payload" \
-    | json_extract '.response'
+    | json_extract '.response' \
+    || _ollama_generate_via_cli "$prompt" "$model"
 }
