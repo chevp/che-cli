@@ -1,0 +1,71 @@
+name: Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = $tag -replace '^v',''
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "Could not derive version from tag '$tag'"
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Building che-cli version: $version"
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --confirm
+
+      - name: Build installer
+        shell: pwsh
+        working-directory: installer
+        run: .\build.ps1 -Version '${{ steps.version.outputs.version }}'
+
+      - name: Compute SHA256
+        id: sha
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem installer/Output -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "No installer .exe produced under installer/Output" }
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+          $shaPath = "$($exe.FullName).sha256"
+          "$hash  $($exe.Name)" | Out-File -FilePath $shaPath -Encoding ascii -NoNewline
+          "exe=$($exe.FullName)"  | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "sha=$shaPath"          | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Installer: $($exe.FullName)"
+          Write-Host "SHA256:    $hash"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: che-cli-windows-installer-${{ steps.version.outputs.version }}
+          path: |
+            installer/Output/*.exe
+            installer/Output/*.sha256
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: che-cli ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.sha.outputs.exe }}
+            ${{ steps.sha.outputs.sha }}

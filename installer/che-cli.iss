@@ -15,7 +15,9 @@
 ; ============================================================================
 
 #define MyAppName       "che-cli"
-#define MyAppVersion    "0.2.0"
+#ifndef MyAppVersion
+  #define MyAppVersion    "0.2.0"
+#endif
 #define MyAppPublisher  "chevp"
 #define MyAppURL        "https://chevp.github.io/che-cli/"
 #define MyAppExeName    "che.bat"
