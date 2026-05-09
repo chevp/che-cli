@@ -50,13 +50,19 @@ function updateChe() {
     if (pulled.status !== 0) return pulled.status ?? 1;
     const installed = spawnSync(
       npm,
-      ["--prefix", root, "install", "--no-audit", "--no-fund"],
+      ["--prefix", root, "install", "--prefer-online", "--no-audit", "--no-fund"],
       opts,
     );
     return installed.status ?? 1;
   }
 
+  // --prefer-online: bypass npm's git-URL cache so updates to chevp/chi land
+  // on the next `che update` instead of being silently masked by stale cache.
   console.log("che update: global install (github:chevp/che-cli)");
-  const r = spawnSync(npm, ["install", "-g", "github:chevp/che-cli"], opts);
+  const r = spawnSync(
+    npm,
+    ["install", "-g", "github:chevp/che-cli", "--prefer-online", "--no-audit", "--no-fund"],
+    opts,
+  );
   return r.status ?? 1;
 }
