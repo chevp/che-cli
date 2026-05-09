@@ -29,14 +29,22 @@ _ollama_generate_via_cli() {
 # ollama_serve_start [timeout_seconds]
 # If the server is already responding, returns 0 immediately.
 # Otherwise spawns `ollama serve` in the background and waits up to
-# timeout_seconds (default 10) for the server to respond.
+# timeout_seconds (default 30 on Windows, 10 on other OSes) for the server to respond.
 # Returns 0 on success, 1 if ollama is not installed or never came up.
 # Silent — callers print their own UI.
 ollama_serve_start() {
-  local timeout="${1:-10}"
+  local timeout="${1-}"
+  if [ -z "$timeout" ]; then
+    # Windows cold-start (GPU/CUDA probes) can take 30s; other platforms faster
+    timeout=10
+    case "${CHE_OS:-unknown}" in
+      windows) timeout=30 ;;
+    esac
+  fi
   if ollama_ping; then return 0; fi
   command -v ollama >/dev/null 2>&1 || return 1
-  nohup ollama serve >/dev/null 2>&1 &
+  # Use background process compatible with all shells (Windows Git Bash, Linux, macOS)
+  (ollama serve >/dev/null 2>&1) &
   local i=0
   while [ "$i" -lt "$timeout" ]; do
     sleep 1

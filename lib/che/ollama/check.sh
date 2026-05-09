@@ -38,7 +38,7 @@ ollama_check() {
     ok "ollama${ver:+ $ver} · server@${host}"
   else
     info "no response at $CHE_OLLAMA_HOST — starting 'ollama serve' in the background…"
-    if ollama_serve_start 10; then
+    if ollama_serve_start; then
       ok "ollama${ver:+ $ver} · server@${host}"
     else
       fail "could not reach $CHE_OLLAMA_HOST after starting 'ollama serve'"
