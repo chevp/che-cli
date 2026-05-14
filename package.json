@@ -1,6 +1,6 @@
 {
   "name": "che-cli",
-  "version": "0.2.0",
+  "version": "1.0.3",
   "description": "Thin wrapper that exposes chevp/chi as the `che` command",
   "type": "module",
   "bin": {
